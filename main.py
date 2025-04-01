@@ -4,8 +4,9 @@ Samsung Daily Image - Main Application
 
 This application:
 1. Generates an art image using DALL-E 3
-2. Uploads the image to a Samsung Frame TV
-3. Sets the image as the active art
+2. Enhances the image for optimal display on TV
+3. Uploads the image to a Samsung Frame TV
+4. Sets the image as the active art
 """
 
 import os
@@ -17,6 +18,8 @@ from dotenv import load_dotenv
 
 # Import local modules
 from generate_image import ImageGenerator
+from test_image_enhancement import load_image, save_image, apply_enhancement
+from test_enhancement_presets import get_preset_params
 # TVImageUploader will be imported after creating the module
 
 
@@ -50,15 +53,75 @@ class DailyArtApp:
         # Initialize components
         self.image_generator = ImageGenerator()
         # TVImageUploader will be initialized in run()
+        
+        # Create enhanced images directory if it doesn't exist
+        self.enhanced_dir = "enhanced_images"
+        os.makedirs(self.enhanced_dir, exist_ok=True)
+
+    def enhance_image(self, image_path: str, preset: str = "upscale-sharp") -> Optional[str]:
+        """Enhance an image using the specified preset.
+        
+        Args:
+            image_path: Path to the image to enhance
+            preset: Name of the enhancement preset to use
+            
+        Returns:
+            Path to the enhanced image if successful, None otherwise
+        """
+        try:
+            # Get preset parameters
+            presets = get_preset_params()
+            if preset not in presets:
+                self.logger.error(f"Unknown preset: {preset}")
+                self.logger.info(f"Available presets: {', '.join(presets.keys())}")
+                return None
+            
+            params = presets[preset]
+            
+            # Load the image
+            image = load_image(image_path)
+            if not image:
+                self.logger.error(f"Failed to load image: {image_path}")
+                return None
+            
+            # Apply enhancement
+            self.logger.info(f"Enhancing image with preset: {preset}")
+            orig_width, orig_height = image.size
+            self.logger.info(f"Original size: {orig_width}x{orig_height}")
+            
+            enhanced = apply_enhancement(image, **params)
+            
+            # Create output path
+            base_name = os.path.basename(image_path)
+            name_root, ext = os.path.splitext(base_name)
+            output_filename = f"{name_root}_{preset}{ext}"
+            output_path = os.path.join(self.enhanced_dir, output_filename)
+            
+            # Save the enhanced image
+            if save_image(enhanced, output_path):
+                new_width, new_height = enhanced.size
+                self.logger.info(f"Enhanced size: {new_width}x{new_height}")
+                self.logger.info(f"Enhanced image saved to: {output_path}")
+                return output_path
+            
+            return None
+            
+        except Exception as e:
+            self.logger.exception(f"Error enhancing image: {e}")
+            return None
 
     def run(self, custom_prompt: Optional[str] = None,
-            custom_image: Optional[str] = None) -> bool:
+            custom_image: Optional[str] = None,
+            enhancement_preset: Optional[str] = "upscale-sharp",
+            skip_upload: bool = False) -> bool:
         """Run the main application flow.
 
         Args:
             custom_prompt: Optional custom prompt for image generation.
             custom_image: Optional path to existing image to use instead of
                          generating a new one.
+            enhancement_preset: Preset to use for image enhancement.
+            skip_upload: If True, skip uploading to TV.
 
         Returns:
             True if successful, False otherwise.
@@ -67,8 +130,8 @@ class DailyArtApp:
             # Import here to avoid circular imports
             from upload_image import TVImageUploader
             
-            # Initialize TV uploader
-            tv_uploader = TVImageUploader(self.tv_ip)
+            # Initialize TV uploader if needed
+            tv_uploader = None if skip_upload else TVImageUploader(self.tv_ip)
             
             # Step 1: Get or generate an image
             if custom_image and os.path.exists(custom_image):
@@ -82,7 +145,23 @@ class DailyArtApp:
                     return False
                 self.logger.info(f"Image generated: {image_path}")
 
-            # Step 2: Upload image to TV
+            # Step 2: Enhance the image
+            if enhancement_preset:
+                self.logger.info(f"Enhancing image with preset: {enhancement_preset}")
+                enhanced_path = self.enhance_image(image_path, enhancement_preset)
+                if enhanced_path:
+                    self.logger.info(f"Image enhanced: {enhanced_path}")
+                    # Use the enhanced image for upload
+                    image_path = enhanced_path
+                else:
+                    self.logger.warning("Failed to enhance image, using original")
+
+            # Skip uploading if requested
+            if skip_upload:
+                self.logger.info("Skipping upload to TV as requested")
+                return True
+
+            # Step 3: Upload image to TV
             self.logger.info(f"Uploading image to TV at {self.tv_ip}...")
             content_id = tv_uploader.upload_image(image_path)
             if not content_id:
@@ -90,7 +169,7 @@ class DailyArtApp:
                 return False
             self.logger.info(f"Image uploaded successfully. ID: {content_id}")
 
-            # Step 3: Set as active art
+            # Step 4: Set as active art
             self.logger.info("Setting image as active art...")
             if not tv_uploader.set_active_art(content_id):
                 self.logger.error("Failed to set image as active art")
@@ -244,22 +323,58 @@ def main() -> None:
         help="Path to existing image file to upload instead of generating one."
     )
     parser.add_argument(
+        "--enhance", "-e",
+        default="upscale-sharp",
+        help="Enhancement preset to use (default: 'upscale-sharp'). "
+             "Use 'none' to skip enhancement."
+    )
+    parser.add_argument(
+        "--list-presets", "-l",
+        action="store_true",
+        help="List available enhancement presets and exit."
+    )
+    parser.add_argument(
+        "--skip-upload", "-s",
+        action="store_true",
+        help="Skip uploading to TV - useful for testing."
+    )
+    parser.add_argument(
         "--debug", "-d",
         action="store_true",
         help="Enable debug logging."
     )
 
     args = parser.parse_args()
+    
+    # List available presets if requested
+    if args.list_presets:
+        presets = get_preset_params()
+        print("Available enhancement presets:")
+        for name, params in presets.items():
+            print(f"  {name}")
+        sys.exit(0)
+    
     # Ensure required modules exist
     create_upload_module()
 
     # Run application
     log_level = logging.DEBUG if args.debug else logging.INFO
     app = DailyArtApp(log_level=log_level)
-    success = app.run(args.prompt, args.image)
+    
+    # Determine enhancement preset
+    enhancement_preset = None if args.enhance.lower() == "none" else args.enhance
+    
+    success = app.run(
+        args.prompt, 
+        args.image, 
+        enhancement_preset,
+        args.skip_upload
+    )
 
     if success:
-        print("Daily art successfully generated and displayed!")
+        print("Daily art successfully generated and enhanced!")
+        if not args.skip_upload:
+            print("Image was uploaded and set as active art on TV")
     else:
         print("Failed to complete daily art process")
         sys.exit(1)

@@ -4,6 +4,7 @@
 # Generated image files
 images/
 generated_images/
+enhanced_images/
 
 # Python
 __pycache__/

@@ -64,13 +64,13 @@ class ImageGenerator:
 
         # Get the season name
         if current_month in winter:
-            season = "winter"
+            season = "Winter"
         elif current_month in spring:
-            season = "spring"
+            season = "Spring"
         elif current_month in summer:
-            season = "summer"
+            season = "Summer"
         elif current_month in fall:
-            season = "fall"
+            season = "Autumn"
         else:
             season = "unknown"  # Should not happen
 
@@ -125,10 +125,10 @@ class ImageGenerator:
 
         # Example subjects for the LLM to use as guidance
         subject_examples = {
-            "winter": "snowy landscapes, winter berries, frost patterns",
-            "spring": "cherry blossoms, tulips, spring gardens, new growth",
-            "summer": "beach scenes, summer gardens, sunflowers, nature",
-            "fall": "autumn foliage, harvest scenes, fall colors"
+            "Winter": "snowy landscapes, winter berries, frost patterns, winter flowers, winter bouquets",
+            "Spring": "cherry blossoms, tulips, spring gardens, new growth, spring bouquets, wild flowers",
+            "Summer": "summer gardens, sunflowers, nature, summer bouquets",
+            "Autumn": "autumn foliage, harvest scenes, fall colors, fall flowers, autumn leaves, autumnal bouquets"
         }
 
         # Optional: Special date check could be implemented here
@@ -138,9 +138,10 @@ class ImageGenerator:
         prompt = (
             f"Create a high-quality {style} art piece for {weekday}, "
             f"{formatted_date} in {season}. Choose a subject relevant to "
-            f"this day and time of year like {subject_examples[season]}. "
-            f"Use colors for {season}. Ensure 16:9 ratio for Samsung Frame "
-            f"TV. Create fine art with texture and depth. No text or "
+            f"this day and time of year such as {subject_examples[season]} "
+            f"or related seasonal theme. "
+            f"Use colors for {season}. Ensure 16:9 aspect ratio. "
+            f"Create fine art with texture and depth. No text or "
             f"signatures."
         )
 
