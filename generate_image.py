@@ -125,10 +125,10 @@ class ImageGenerator:
 
         # Example subjects for the LLM to use as guidance
         subject_examples = {
-            "Winter": "snowy landscapes, winter berries, frost patterns, winter flowers, winter bouquets",
-            "Spring": "cherry blossoms, tulips, spring gardens, new growth, spring bouquets, wild flowers",
-            "Summer": "summer gardens, sunflowers, nature, summer bouquets",
-            "Autumn": "autumn foliage, harvest scenes, fall colors, fall flowers, autumn leaves, autumnal bouquets"
+            "Winter": "snowy landscapes, winter berries, frost patterns, winter flowers, winter bouquets, winter flowers in a vase",
+            "Spring": "cherry blossoms, tulips, spring gardens, new growth, spring bouquets, wild flowers, spring flowers in a vase",
+            "Summer": "summer gardens, sunflowers, nature, summer bouquets, summer wild flowers, summer flowers in a vase",
+            "Autumn": "autumn foliage, harvest scenes, fall colors, fall flowers, autumn leaves, autumnal bouquets, autumn flowers in a vase"
         }
 
         # Optional: Special date check could be implemented here
@@ -139,7 +139,7 @@ class ImageGenerator:
             f"Create a high-quality {style} art piece for {weekday}, "
             f"{formatted_date} in {season}. Choose a subject relevant to "
             f"this day and time of year such as {subject_examples[season]} "
-            f"or related seasonal theme. "
+            f"or any related seasonal theme. "
             f"Use colors for {season}. Ensure 16:9 aspect ratio. "
             f"Create fine art with texture and depth. No text or "
             f"signatures."
