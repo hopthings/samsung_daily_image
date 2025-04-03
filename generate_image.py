@@ -140,7 +140,8 @@ class ImageGenerator:
             f"{formatted_date} in {season}. Choose a subject relevant to "
             f"this day and time of year such as {subject_examples[season]} "
             f"or any related seasonal theme. "
-            f"Use colors for {season}. Ensure 16:9 aspect ratio. "
+            f"Use colors for {season} but not too vibrant as this should look like "
+            f"a real painting. Ensure 16:9 aspect ratio. "
             f"Create fine art with texture and depth. No text or "
             f"signatures."
         )
