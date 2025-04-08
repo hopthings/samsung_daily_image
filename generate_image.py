@@ -125,10 +125,10 @@ class ImageGenerator:
 
         # Example subjects for the LLM to use as guidance
         subject_examples = {
-            "Winter": "snowy landscapes, winter berries, frost patterns, winter flowers, winter bouquets, winter flowers in a vase",
-            "Spring": "cherry blossoms, tulips, spring gardens, new growth, spring bouquets, wild flowers, spring flowers in a vase",
-            "Summer": "summer gardens, sunflowers, nature, summer bouquets, summer wild flowers, summer flowers in a vase",
-            "Autumn": "autumn foliage, harvest scenes, fall colors, fall flowers, autumn leaves, autumnal bouquets, autumn flowers in a vase"
+            "Winter": "snowy landscapes, winter berries, frost patterns, winter flowers, winter bouquets, winter flowers in a vase, fields of snowdrops or crocuses, winter vines and climbing flowers (like ivy or clematis), fields of heather or winter jasmine",
+            "Spring": "cherry blossoms, tulips, spring gardens, spring bouquets, wild flowers, spring flowers in a vase, blossoming branches (apple, dogwood, or magnolia), fields of daffodils or bluebells, spring vines and climbing flowers (like clematis or honeysuckle)",
+            "Summer": "summer gardens, sunflowers, nature, summer bouquets, summer wild flowers, summer flowers in a vase, poppies in a meadow, lavender fields, summer vines and climbing flowers (like wisteria or morning glories), fields of daisies or zinnias",
+            "Autumn": "autumn foliage, harvest scenes, fall colors, fall flowers, autumn leaves, autumnal bouquets, autumn flowers in a vase, fields of asters or goldenrod, autumn vines and climbing flowers (like clematis or morning glories)"
         }
 
         # Optional: Special date check could be implemented here
