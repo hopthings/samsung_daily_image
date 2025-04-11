@@ -3,19 +3,80 @@
 
 import os
 import sys
-import urllib3
-from typing import Optional
+import time
+import urllib3  # type: ignore
+import logging
+from typing import Optional, Any, Callable, TypeVar, cast, Type, Tuple
 from dotenv import load_dotenv
-from samsungtvws import SamsungTVWS
+from samsungtvws import SamsungTVWS  # type: ignore
+from samsungtvws.exceptions import HttpApiError  # type: ignore
+
 
 # Suppress InsecureRequestWarning for local TV connections
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+# Setup logger
+logger = logging.getLogger("DailyArtApp")
+
+# Type variable for retry decorator
+T = TypeVar('T')
+ExceptionTypes = Tuple[Type[Exception], ...]
+
+
+# Retry decorator
+def retry(
+    max_attempts: int = 3, 
+    delay: float = 5.0,
+    backoff_factor: float = 2.0,
+    allowed_exceptions: ExceptionTypes = (
+        HttpApiError, ConnectionError, OSError
+    )
+) -> Callable[[Callable[..., T]], Callable[..., T]]:
+    """Retry decorator with exponential backoff.
+    
+    Args:
+        max_attempts: Maximum number of retry attempts.
+        delay: Initial delay between retries in seconds.
+        backoff_factor: Backoff factor to increase delay between retries.
+        allowed_exceptions: Exceptions that trigger a retry.
+        
+    Returns:
+        Decorated function with retry logic.
+    """
+    def decorator(func: Callable[..., T]) -> Callable[..., T]:
+        def wrapper(*args: Any, **kwargs: Any) -> T:
+            attempts = 0
+            current_delay = delay
+            
+            while attempts < max_attempts:
+                try:
+                    return func(*args, **kwargs)
+                except allowed_exceptions as e:
+                    attempts += 1
+                    if attempts >= max_attempts:
+                        logger.error(f"Failed after {max_attempts} attempts: {e}")
+                        raise
+                    
+                    logger.warning(
+                        f"Attempt {attempts}/{max_attempts} failed with "
+                        f"{type(e).__name__}: {e}. "
+                        f"Retrying in {current_delay:.1f} seconds..."
+                    )
+                    time.sleep(current_delay)
+                    current_delay *= backoff_factor
+            
+            # This should never be reached, but mypy requires a return statement
+            assert False, "This code should be unreachable"
+            return cast(T, None)  # Make mypy happy
+            
+        return wrapper
+    return decorator
 
 
 class TVImageUploader:
     """Class to handle image upload and display on Samsung Frame TV."""
 
-    def __init__(self, tv_ip: str = None) -> None:
+    def __init__(self, tv_ip: Optional[str] = None) -> None:
         """Initialize the uploader with TV IP address.
 
         Args:
@@ -24,14 +85,24 @@ class TVImageUploader:
         """
         if not tv_ip:
             load_dotenv()
-            tv_ip = os.getenv("SAMSUNG_TV_IP")
-            if not tv_ip:
-                print("Error: SAMSUNG_TV_IP not found in .env file")
+            env_ip = os.getenv("SAMSUNG_TV_IP")
+            if not env_ip:
+                logger.error("Error: SAMSUNG_TV_IP not found in .env file")
                 sys.exit(1)
+            tv_ip = env_ip
 
         self.tv_ip = tv_ip
-        self.tv = SamsungTVWS(tv_ip, port=8002, name="DailyArtApp")
+        self.tv: Any = None
+        self._initialize_tv_connection()
+        
+    @retry(max_attempts=3, delay=3.0)
+    def _initialize_tv_connection(self) -> None:
+        """Initialize connection to the TV with retry logic."""
+        logger.info(f"Connecting to Samsung TV at {self.tv_ip}...")
+        self.tv = SamsungTVWS(self.tv_ip, port=8002, name="DailyArtApp")
+        logger.info("Successfully connected to Samsung TV")
 
+    @retry(max_attempts=3, delay=3.0)
     def upload_image(self, image_path: str) -> Optional[str]:
         """Upload an image to the TV.
 
@@ -42,34 +113,30 @@ class TVImageUploader:
             Content ID if successful, None otherwise.
         """
         if not os.path.exists(image_path):
-            print(f"Error: Image {image_path} not found")
+            logger.error(f"Error: Image {image_path} not found")
             return None
 
-        try:
-            # Read the image file as binary data
-            with open(image_path, 'rb') as f:
-                data = f.read()
+        # Read the image file as binary data
+        with open(image_path, 'rb') as f:
+            data = f.read()
 
-            # Determine file type from extension
-            file_type = os.path.splitext(image_path)[1][1:].upper()
-            if file_type.upper() == 'JPG':
-                file_type = 'JPEG'
+        # Determine file type from extension
+        file_type = os.path.splitext(image_path)[1][1:].upper()
+        if file_type.upper() == 'JPG':
+            file_type = 'JPEG'
 
-            # Upload the image with no matte/mount
-            # Setting matte to 'none' means no frame/mount
-            content_id = self.tv.art().upload(
-                data,
-                file_type=file_type,
-                matte='none',  # No frame/mount
-                portrait_matte='none'  # For portrait orientation
-            )
-            print(f"Uploaded image without matte, content ID: {content_id}")
-            return content_id
+        # Upload the image with no matte/mount
+        # Setting matte to 'none' means no frame/mount
+        content_id = self.tv.art().upload(  # type: ignore
+            data,
+            file_type=file_type,
+            matte='none',  # No frame/mount
+            portrait_matte='none'  # For portrait orientation
+        )
+        logger.info(f"Uploaded image without matte, content ID: {content_id}")
+        return cast(Optional[str], content_id)
 
-        except Exception as e:
-            print(f"Error uploading image: {e}")
-            return None
-
+    @retry(max_attempts=3, delay=3.0)
     def set_active_art(self, content_id: str) -> bool:
         """Set an uploaded image as the active art.
 
@@ -79,65 +146,64 @@ class TVImageUploader:
         Returns:
             True if successful, False otherwise.
         """
+        # Try to ensure TV is in Art Mode
         try:
-            # Try to ensure TV is in Art Mode
-            try:
-                self.tv.art().set_artmode(True)
-            except Exception:
-                # Art mode switching sometimes fails, but we can still
-                # set the active image
-                pass
-
-            # First remove any matte/mount
-            try:
-                # Set matte to 'none' to remove any frame/mount
-                self.tv.art().change_matte(content_id, matte_id='none')
-                print(f"Removed matte for content ID: {content_id}")
-            except Exception as e:
-                print(f"Note: Could not remove matte: {e}")
-                # Continue anyway - not critical
-
-            # Set the image as active
-            try:
-                self.tv.art().select_image(content_id)
-                print(f"Set image with ID: {content_id} as active")
-                return True
-            except Exception as e:
-                print(f"Error setting active image: {e}")
-
-                # Try alternative approach
-                try:
-                    # Get list of all uploaded images
-                    content_list = self.tv.art().get_content_list()
-                    # Find matching content ID or use the first one
-                    target_id = content_id
-                    if content_list and len(content_list) > 0:
-                        # Look for our specific content_id first
-                        found = False
-                        for item in content_list:
-                            if item.get("content_id") == content_id:
-                                found = True
-                                break
-                        if not found and len(content_list) > 0:
-                            # Use first available if ours not found
-                            target_id = content_list[0].get("content_id")
-
-                        # First try to remove matte for the target image
-                        try:
-                            self.tv.art().change_matte(
-                                target_id, matte_id='none'
-                            )
-                            print(f"Removed matte for alt ID: {target_id}")
-                        except Exception:
-                            pass  # Continue if this fails
-
-                        # Then set as active
-                        self.tv.art().select_image(target_id)
-                        print(f"Set alt image ID: {target_id} as active")
-                        return True
-                except Exception as e2:
-                    print(f"Alternative approach failed: {e2}")
-                    return False
+            self.tv.art().set_artmode(True)  # type: ignore
+            logger.info("Set TV to Art Mode")
         except Exception as e:
-            print(f"Error setting active art: {e}")
+            # Art mode switching sometimes fails, but we can still
+            # set the active image
+            logger.warning(f"Could not set Art Mode: {e}")
+
+        # First remove any matte/mount
+        try:
+            # Set matte to 'none' to remove any frame/mount
+            self.tv.art().change_matte(content_id, matte_id='none')  # type: ignore
+            logger.info(f"Removed matte for content ID: {content_id}")
+        except Exception as e:
+            logger.warning(f"Could not remove matte: {e}")
+            # Continue anyway - not critical
+
+        # Set the image as active
+        try:
+            self.tv.art().select_image(content_id)  # type: ignore
+            logger.info(f"Set image with ID: {content_id} as active")
+            return True
+        except Exception as e:
+            logger.warning(f"Could not set primary image as active: {e}")
+
+            # Try alternative approach
+            logger.info("Trying alternative approach to set active image")
+            content_list = self.tv.art().get_content_list()  # type: ignore
+            
+            # Find matching content ID or use the first one
+            target_id = content_id
+            if content_list and len(content_list) > 0:
+                # Look for our specific content_id first
+                found = False
+                for item in content_list:
+                    if item.get("content_id") == content_id:
+                        found = True
+                        break
+                if not found and len(content_list) > 0:
+                    # Use first available if ours not found
+                    target_id = cast(str, content_list[0].get("content_id"))
+                    logger.info(f"Using first available image with ID: {target_id}")
+
+                # First try to remove matte for the target image
+                try:
+                    # Set matte to 'none' to remove any frame/mount
+                    self.tv.art().change_matte(  # type: ignore
+                        target_id, matte_id='none'
+                    )
+                    logger.info(f"Removed matte for alt ID: {target_id}")
+                except Exception as e:
+                    logger.warning(f"Could not remove matte for alt image: {e}")
+
+                # Then set as active
+                self.tv.art().select_image(target_id)  # type: ignore
+                logger.info(f"Set alt image ID: {target_id} as active")
+                return True
+            
+            logger.error("No content available to set as active")
             return False

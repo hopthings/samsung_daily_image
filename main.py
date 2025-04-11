@@ -163,20 +163,30 @@ class DailyArtApp:
 
             # Step 3: Upload image to TV
             self.logger.info(f"Uploading image to TV at {self.tv_ip}...")
-            content_id = tv_uploader.upload_image(image_path)
-            if not content_id:
-                self.logger.error("Failed to upload image to TV")
-                return False
-            self.logger.info(f"Image uploaded successfully. ID: {content_id}")
-
-            # Step 4: Set as active art
-            self.logger.info("Setting image as active art...")
-            if not tv_uploader.set_active_art(content_id):
-                self.logger.error("Failed to set image as active art")
-                return False
-            self.logger.info("Image successfully set as active art")
-
-            return True
+            try:
+                content_id = tv_uploader.upload_image(image_path)
+                if not content_id:
+                    self.logger.error("Failed to upload image to TV")
+                    return False
+                self.logger.info(f"Image uploaded successfully. ID: {content_id}")
+                
+                # Step 4: Set as active art
+                self.logger.info("Setting image as active art...")
+                if not tv_uploader.set_active_art(content_id):
+                    self.logger.error("Failed to set image as active art")
+                    # Continue and return success anyway since the image was uploaded
+                    # This ensures we don't completely fail if only the "set active" step fails
+                    self.logger.warning("Image was uploaded but couldn't be set as active")
+                    return True
+                self.logger.info("Image successfully set as active art")
+                
+                return True
+            except Exception as e:
+                self.logger.error(f"TV communication failed despite retries: {e}")
+                self.logger.info("Image generation was successful and saved locally")
+                self.logger.info(f"You can manually upload the image: {image_path}")
+                # Return true since we did successfully generate the image
+                return True
 
         except Exception as e:
             self.logger.exception(f"Error in application flow: {e}")
