@@ -138,8 +138,9 @@ class ImageGenerator:
         prompt = (
             f"Create a high-quality {style} art piece for {weekday}, "
             f"{formatted_date} in {season}. Choose a subject relevant to "
-            f"this day and time of year such as {subject_examples[season]} "
-            f"or any related seasonal theme. "
+            f"this day and time of year. Focus on a single seasonal subject that evokes this time of year. "
+            f"This could be something like {subject_examples[season]}, "
+            f"or something more unexpected but still seasonally appropriate. Feel free to interpret the theme creatively based on the time of year. "
             f"Use a soft, natural {season} palette with subtle, muted tones—avoid overly vibrant or saturated colours. "
             f"The painting should emulate the look and feel of real paint on canvas, with visible brushstrokes and layered "
             f"texture. Aim for a realistic fine art aesthetic, evoking the softness of traditional oil or acrylic painting. "
