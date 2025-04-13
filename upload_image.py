@@ -6,6 +6,8 @@ import sys
 import time
 import urllib3  # type: ignore
 import logging
+import socket
+import requests
 from typing import Optional, Any, Callable, TypeVar, cast, Type, Tuple
 from dotenv import load_dotenv
 from samsungtvws import SamsungTVWS  # type: ignore
@@ -25,11 +27,11 @@ ExceptionTypes = Tuple[Type[Exception], ...]
 
 # Retry decorator
 def retry(
-    max_attempts: int = 3, 
+    max_attempts: int = 5, 
     delay: float = 5.0,
     backoff_factor: float = 2.0,
     allowed_exceptions: ExceptionTypes = (
-        HttpApiError, ConnectionError, OSError
+        HttpApiError, ConnectionError, OSError, TimeoutError
     )
 ) -> Callable[[Callable[..., T]], Callable[..., T]]:
     """Retry decorator with exponential backoff.
@@ -95,14 +97,55 @@ class TVImageUploader:
         self.tv: Any = None
         self._initialize_tv_connection()
         
-    @retry(max_attempts=3, delay=3.0)
+    def is_tv_available(self) -> bool:
+        """Check if the TV is available on the network.
+        
+        Returns:
+            True if TV responds to connection attempt, False otherwise.
+        """
+        try:
+            # Try a simple socket connection to test if the TV is available
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(5.0)  # 5 second timeout
+            result = sock.connect_ex((self.tv_ip, 8002))
+            sock.close()
+            
+            if result == 0:
+                # Additionally check if API endpoint responds
+                try:
+                    response = requests.get(
+                        f"https://{self.tv_ip}:8002/api/v2/", 
+                        timeout=5.0,
+                        verify=False
+                    )
+                    return response.status_code < 500  # Any response that's not a server error
+                except requests.RequestException:
+                    return False
+            return False
+        except Exception as e:
+            logger.debug(f"TV availability check failed: {e}")
+            return False  # type: ignore
+            
+    @retry(max_attempts=5, delay=10.0)
     def _initialize_tv_connection(self) -> None:
         """Initialize connection to the TV with retry logic."""
         logger.info(f"Connecting to Samsung TV at {self.tv_ip}...")
-        self.tv = SamsungTVWS(self.tv_ip, port=8002, name="DailyArtApp")
+        
+        # First check if TV is available
+        if not self.is_tv_available():
+            logger.warning(f"TV at {self.tv_ip} appears to be unreachable or powered off")
+            raise ConnectionError("TV is unreachable - it may be powered off or in deep sleep mode")
+            
+        # Proceed with actual connection
+        self.tv = SamsungTVWS(
+            self.tv_ip, 
+            port=8002, 
+            name="DailyArtApp",
+            timeout=10  # Increase default timeout
+        )
         logger.info("Successfully connected to Samsung TV")
 
-    @retry(max_attempts=3, delay=3.0)
+    @retry(max_attempts=5, delay=5.0)
     def upload_image(self, image_path: str) -> Optional[str]:
         """Upload an image to the TV.
 
@@ -136,7 +179,7 @@ class TVImageUploader:
         logger.info(f"Uploaded image without matte, content ID: {content_id}")
         return cast(Optional[str], content_id)
 
-    @retry(max_attempts=3, delay=3.0)
+    @retry(max_attempts=5, delay=5.0)
     def set_active_art(self, content_id: str) -> bool:
         """Set an uploaded image as the active art.
 

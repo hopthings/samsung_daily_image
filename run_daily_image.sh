@@ -43,9 +43,27 @@ ping -c 3 "$TV_IP" >> "$PROJECT_DIR/daily_run.log" 2>&1 || {
     echo "WARNING: Cannot ping the TV. It may be off or disconnected." >> "$PROJECT_DIR/daily_run.log"
 }
 
-# Wait a bit for network to stabilize
-echo "Waiting 5 seconds for network..." >> "$PROJECT_DIR/daily_run.log"
-sleep 5
+# Attempt to wake the TV using WOL
+if command -v wakeonlan >/dev/null 2>&1; then
+    # Get TV MAC address from .env file if available
+    TV_MAC=$(grep SAMSUNG_TV_MAC "$PROJECT_DIR/.env" | cut -d= -f2)
+    if [ -n "$TV_MAC" ]; then
+        echo "Attempting to wake TV with MAC: $TV_MAC" >> "$PROJECT_DIR/daily_run.log"
+        wakeonlan "$TV_MAC" >> "$PROJECT_DIR/daily_run.log" 2>&1
+    else
+        echo "TV MAC address not found in .env file, skipping wake-on-lan" >> "$PROJECT_DIR/daily_run.log"
+    fi
+else
+    echo "wakeonlan command not found, skipping TV wake attempt" >> "$PROJECT_DIR/daily_run.log"
+fi
+
+# Wait longer for network and TV to stabilize
+echo "Waiting 30 seconds for TV to power on and network to stabilize..." >> "$PROJECT_DIR/daily_run.log"
+sleep 30
+
+# Check if TV is responding after wait
+echo "Re-checking TV connection..." >> "$PROJECT_DIR/daily_run.log"
+ping -c 3 "$TV_IP" >> "$PROJECT_DIR/daily_run.log" 2>&1
 
 # Run the app with the full path to Python in the virtual environment
 # This avoids having to activate the virtual environment in the launchd context

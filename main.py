@@ -131,7 +131,9 @@ class DailyArtApp:
             from upload_image import TVImageUploader
             
             # Initialize TV uploader if needed
-            tv_uploader = None if skip_upload else TVImageUploader(self.tv_ip)
+            tv_uploader: Optional[TVImageUploader] = None
+            if not skip_upload:
+                tv_uploader = TVImageUploader(self.tv_ip)
             
             # Step 1: Get or generate an image
             if custom_image and os.path.exists(custom_image):
@@ -139,10 +141,11 @@ class DailyArtApp:
                 image_path = custom_image
             else:
                 self.logger.info("Generating new art image...")
-                image_path = self.image_generator.generate_image(custom_prompt)
-                if not image_path:
+                generated_path = self.image_generator.generate_image(custom_prompt)
+                if not generated_path:
                     self.logger.error("Failed to generate image")
                     return False
+                image_path = generated_path
                 self.logger.info(f"Image generated: {image_path}")
 
             # Step 2: Enhance the image
@@ -160,10 +163,30 @@ class DailyArtApp:
             if skip_upload:
                 self.logger.info("Skipping upload to TV as requested")
                 return True
+                
+            # Check if TV is powered on via simple ping test before attempting connection
+            try:
+                import socket
+                tv_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                tv_socket.settimeout(5.0)
+                connection_result = tv_socket.connect_ex((self.tv_ip, 8002))
+                tv_socket.close()
+                
+                if connection_result != 0:
+                    self.logger.warning(f"TV at {self.tv_ip} appears to be unreachable or powered off")
+                    self.logger.info(f"Image was generated and saved at: {image_path}")
+                    self.logger.info("Consider manually uploading later when TV is available")
+                    return True
+            except Exception as e:
+                self.logger.warning(f"TV connectivity check failed: {e}")
 
             # Step 3: Upload image to TV
             self.logger.info(f"Uploading image to TV at {self.tv_ip}...")
             try:
+                if tv_uploader is None:
+                    self.logger.error("TV uploader was not initialized")
+                    return False
+                
                 content_id = tv_uploader.upload_image(image_path)
                 if not content_id:
                     self.logger.error("Failed to upload image to TV")
@@ -177,6 +200,7 @@ class DailyArtApp:
                     # Continue and return success anyway since the image was uploaded
                     # This ensures we don't completely fail if only the "set active" step fails
                     self.logger.warning("Image was uploaded but couldn't be set as active")
+                    self.logger.info("You can manually set the image in TV's Art Mode menu")
                     return True
                 self.logger.info("Image successfully set as active art")
                 
@@ -185,6 +209,16 @@ class DailyArtApp:
                 self.logger.error(f"TV communication failed despite retries: {e}")
                 self.logger.info("Image generation was successful and saved locally")
                 self.logger.info(f"You can manually upload the image: {image_path}")
+                
+                # Special handling for common TV errors
+                error_msg = str(e).lower()
+                if "unreachable" in error_msg or "no route to host" in error_msg:
+                    self.logger.warning("TV appears to be powered off or in deep sleep mode")
+                    self.logger.info("Try running this script when the TV is on, or enable Wake-on-LAN")
+                elif "timeout" in error_msg:
+                    self.logger.warning("Connection to TV timed out - network may be unstable")
+                    self.logger.info("Check that the TV is connected to the same network as this computer")
+                    
                 # Return true since we did successfully generate the image
                 return True
 
