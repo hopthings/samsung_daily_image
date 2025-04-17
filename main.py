@@ -5,8 +5,9 @@ Samsung Daily Image - Main Application
 This application:
 1. Generates an art image using DALL-E 3
 2. Enhances the image for optimal display on TV
-3. Uploads the image to a Samsung Frame TV
-4. Sets the image as the active art
+3. Upscales the image using Topaz Photo AI
+4. Uploads the image to a Samsung Frame TV
+5. Sets the image as the active art
 """
 
 import os
@@ -20,6 +21,7 @@ from dotenv import load_dotenv
 from generate_image import ImageGenerator
 from test_image_enhancement import load_image, save_image, apply_enhancement
 from test_enhancement_presets import get_preset_params
+from upscale_image import upscale_image
 # TVImageUploader will be imported after creating the module
 
 
@@ -113,7 +115,8 @@ class DailyArtApp:
     def run(self, custom_prompt: Optional[str] = None,
             custom_image: Optional[str] = None,
             enhancement_preset: Optional[str] = "upscale-sharp",
-            skip_upload: bool = False) -> bool:
+            skip_upload: bool = False,
+            skip_upscale: bool = False) -> bool:
         """Run the main application flow.
 
         Args:
@@ -122,6 +125,7 @@ class DailyArtApp:
                          generating a new one.
             enhancement_preset: Preset to use for image enhancement.
             skip_upload: If True, skip uploading to TV.
+            skip_upscale: If True, skip Topaz upscaling step.
 
         Returns:
             True if successful, False otherwise.
@@ -158,6 +162,20 @@ class DailyArtApp:
                     image_path = enhanced_path
                 else:
                     self.logger.warning("Failed to enhance image, using original")
+
+            # Step 3: Upscale image with Topaz Photo AI
+            if not skip_upscale:
+                self.logger.info("Upscaling image with Topaz Photo AI...")
+                success, upscaled_path, error = upscale_image(image_path)
+                if success and upscaled_path:
+                    self.logger.info(f"Image upscaled successfully: {upscaled_path}")
+                    # Use the upscaled image for upload
+                    image_path = upscaled_path
+                else:
+                    self.logger.warning(f"Failed to upscale image: {error}")
+                    self.logger.info("Using previous image version for upload")
+            else:
+                self.logger.info("Skipping Topaz upscaling as requested")
 
             # Skip uploading if requested
             if skip_upload:
@@ -383,6 +401,11 @@ def main() -> None:
         help="Skip uploading to TV - useful for testing."
     )
     parser.add_argument(
+        "--skip-upscale", "-u",
+        action="store_true",
+        help="Skip Topaz Photo AI upscaling step."
+    )
+    parser.add_argument(
         "--debug", "-d",
         action="store_true",
         help="Enable debug logging."
@@ -412,7 +435,8 @@ def main() -> None:
         args.prompt, 
         args.image, 
         enhancement_preset,
-        args.skip_upload
+        args.skip_upload,
+        args.skip_upscale
     )
 
     if success:
