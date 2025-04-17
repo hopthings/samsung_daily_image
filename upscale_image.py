@@ -47,35 +47,38 @@ def upscale_image(
         f"{input_path.stem}-upgraded{input_path.suffix}"
     )
 
-    # Instead of using Topaz's output directory handling, we'll do it manually
-    try:
-        # Determine Topaz executable path based on OS
-        if platform.system() == "Darwin":  # macOS
-            tpai_exe = "tpai"
-        elif platform.system() == "Windows":
-            tpai_exe = (
-                r"C:\Program Files\Topaz Labs LLC\Topaz Photo AI\tpai.exe"
-            )
-        else:
-            return (
-                False,
-                None,
-                f"Unsupported operating system: {platform.system()}"
-            )
-
-        # Make sure we have absolute paths
-        abs_input_path = os.path.abspath(str(input_path))
-        
-        # This is just a basic try-except block
+    # Create temporary directory to work in
+    with tempfile.TemporaryDirectory() as temp_dir:
         try:
-            # First try with the standard CLI approach
-            logger.info(f"Running Topaz Photo AI on: {abs_input_path}")
+            # Determine Topaz executable path based on OS
+            if platform.system() == "Darwin":  # macOS
+                tpai_exe = "tpai"
+            elif platform.system() == "Windows":
+                tpai_exe = (
+                    r"C:\Program Files\Topaz Labs LLC\Topaz Photo AI\tpai.exe"
+                )
+            else:
+                return (
+                    False,
+                    None,
+                    f"Unsupported operating system: {platform.system()}"
+                )
+
+            # Create a temporary copy of the input file
+            temp_input = Path(temp_dir) / input_path.name
+            shutil.copy2(input_path, temp_input)
             
-            # Run the CLI command
+            # Absolute path to the temp input file
+            abs_temp_input = str(temp_input.absolute())
+            
+            # First try with the standard CLI approach
+            logger.info(f"Running Topaz Photo AI on: {abs_temp_input}")
+            
+            # Run the CLI command 
             command = [
                 tpai_exe,
                 "--cli",
-                abs_input_path,
+                abs_temp_input,
                 "--upscale",
                 "--overwrite"
             ]
@@ -87,61 +90,63 @@ def upscale_image(
                 check=False
             )
             
-            # Check if successful - the upscaled image will replace the original
+            success = False
+            
+            # Check if the command succeeded
             if result.returncode in [0, 1]:  # 0=success, 1=partial success
-                # If successful, the input file should have been replaced with
-                # the upscaled version
-                if input_path.exists():
-                    # Copy the upscaled image to our desired output path
-                    shutil.copy2(abs_input_path, output_path)
+                if temp_input.exists():
+                    # Copy the upscaled temp file to our output path
+                    shutil.copy2(temp_input, output_path)
+                    success = True
+            
+            # If first attempt failed, try alternative approach with shell=True
+            if not success:
+                logger.warning(
+                    f"First approach failed with return code {result.returncode}. "
+                    f"Error: {result.stderr}"
+                )
+                logger.info("Trying alternative approach with shell=True...")
+                
+                # Re-copy the original to the temp location (in case it was modified)
+                if temp_input.exists():
+                    os.remove(temp_input)
+                shutil.copy2(input_path, temp_input)
+                
+                # Build command with quoted paths for shell execution
+                shell_cmd = f'{tpai_exe} --cli "{abs_temp_input}" --upscale --overwrite'
+                
+                result = subprocess.run(
+                    shell_cmd,
+                    shell=True,
+                    capture_output=True,
+                    text=True,
+                    check=False
+                )
+                
+                # Check if second attempt succeeded
+                if result.returncode in [0, 1]:
+                    if temp_input.exists():
+                        shutil.copy2(temp_input, output_path)
+                        success = True
+            
+            # Return result based on success flag
+            if success:
+                if output_path.exists():
                     return True, str(output_path), None
                 else:
-                    return (
-                        False,
-                        None,
-                        "Upscale command succeeded but cannot find output file"
-                    )
-            
-            # If regular command failed, try with shell=True and quoted paths
-            logger.warning(
-                f"First approach failed with return code {result.returncode}. "
-                f"Error: {result.stderr}"
-            )
-            logger.info("Trying alternative approach with shell=True...")
-            
-            # Build command with quoted paths for shell execution
-            shell_cmd = f'{tpai_exe} --cli "{abs_input_path}" --upscale --overwrite'
-            
-            result = subprocess.run(
-                shell_cmd,
-                shell=True,
-                capture_output=True,
-                text=True,
-                check=False
-            )
-            
-            # Check if this attempt was successful
-            if result.returncode in [0, 1]:
-                # If successful, the input file should have been replaced
-                if input_path.exists():
-                    # Copy the upscaled image to our desired output path
-                    shutil.copy2(abs_input_path, output_path)
-                    return True, str(output_path), None
-            
-            # If both approaches failed, return error
-            debug_info = (
-                f"Command: {shell_cmd}\n"
-                f"Return code: {result.returncode}\n"
-                f"Stderr: {result.stderr}\n"
-                f"Stdout: {result.stdout}\n"
-            )
-            
-            return False, None, f"Topaz Photo AI failed: {debug_info}"
+                    return False, None, "Failed to create output file"
+            else:
+                # Prepare debug info for error reporting
+                debug_info = (
+                    f"Command: {command if isinstance(command, str) else ' '.join(str(x) for x in command)}\n"
+                    f"Return code: {result.returncode}\n"
+                    f"Stderr: {result.stderr}\n"
+                    f"Stdout: {result.stdout}\n"
+                )
+                return False, None, f"Topaz Photo AI failed: {debug_info}"
+                
         except Exception as e:
-            return False, None, f"Error with CLI execution: {str(e)}"
-
-    except Exception as e:
-        return False, None, f"Error during upscaling: {str(e)}"
+            return False, None, f"Error during upscaling: {str(e)}"
 
 
 def main() -> int:

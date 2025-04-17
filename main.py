@@ -5,7 +5,7 @@ Samsung Daily Image - Main Application
 This application:
 1. Generates an art image using DALL-E 3
 2. Enhances the image for optimal display on TV
-3. Upscales the image using Topaz Photo AI
+3. Upscales the image using Topaz Photo AI (unless --skip-upscale is used)
 4. Uploads the image to a Samsung Frame TV
 5. Sets the image as the active art
 """
@@ -125,7 +125,7 @@ class DailyArtApp:
                          generating a new one.
             enhancement_preset: Preset to use for image enhancement.
             skip_upload: If True, skip uploading to TV.
-            skip_upscale: If True, skip Topaz upscaling step.
+            skip_upscale: If True, skip Topaz Photo AI upscaling step.
 
         Returns:
             True if successful, False otherwise.
