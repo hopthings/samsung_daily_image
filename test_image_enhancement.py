@@ -44,12 +44,104 @@ def save_image(image: Image.Image, output_path: str) -> bool:
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
         # Save with maximum quality
-        image.save(output_path, quality=95, optimize=True)
+        image.save(output_path, quality=100, optimize=False)
         print(f"Image saved to {output_path}")
         return True
     except Exception as e:
         print(f"Error saving image: {e}")
         return False
+
+
+def resize_image(
+    image: Image.Image, 
+    target_width: int = 0,
+    target_height: int = 0,
+    max_dimension: int = 0,
+    target_filesize_kb: int = 0,
+    quality: int = 90
+) -> Image.Image:
+    """Resize an image to target dimensions or filesize.
+    
+    Args:
+        image: PIL Image to resize
+        target_width: Desired width in pixels (0 to maintain aspect ratio)
+        target_height: Desired height in pixels (0 to maintain aspect ratio)
+        max_dimension: Maximum size for the largest dimension (0 to ignore)
+        target_filesize_kb: Target file size in KB (0 to ignore)
+        quality: JPEG quality for filesize targeting
+        
+    Returns:
+        Resized PIL Image
+    """
+    # Handle the simplest case first - no resize needed
+    if not any([target_width, target_height, max_dimension, target_filesize_kb]):
+        return image
+    
+    # Store original dimensions
+    orig_width, orig_height = image.size
+    
+    # Calculate new dimensions based on targets
+    new_width, new_height = orig_width, orig_height
+    
+    # If both dimensions specified, use them directly
+    if target_width > 0 and target_height > 0:
+        new_width, new_height = target_width, target_height
+    
+    # If only one dimension is provided, maintain aspect ratio
+    elif target_width > 0:
+        new_height = int(orig_height * (target_width / orig_width))
+        new_width = target_width
+    elif target_height > 0:
+        new_width = int(orig_width * (target_height / orig_height))
+        new_height = target_height
+    
+    # Apply max dimension constraint if specified
+    if max_dimension > 0:
+        max_current = max(new_width, new_height)
+        if max_current > max_dimension:
+            scale_factor = max_dimension / max_current
+            new_width = int(new_width * scale_factor)
+            new_height = int(new_height * scale_factor)
+    
+    # Apply the resize
+    resized_image = image.resize((new_width, new_height), Image.LANCZOS)
+    
+    # Optionally target a file size (if specified)
+    if target_filesize_kb > 0:
+        import io
+        
+        # Start with the quality provided
+        current_quality = quality
+        min_quality = 50  # Don't go below this quality
+        
+        # Binary search to find the right quality
+        attempts = 0
+        max_attempts = 5  # Avoid too many iterations
+        
+        while attempts < max_attempts:
+            # Try with current quality
+            buffer = io.BytesIO()
+            resized_image.save(buffer, format="JPEG", quality=current_quality)
+            current_size = len(buffer.getvalue()) / 1024  # Size in KB
+            
+            # If close enough or too many attempts, stop
+            if abs(current_size - target_filesize_kb) < (target_filesize_kb * 0.1) or attempts >= max_attempts:
+                break
+                
+            # Adjust quality based on size difference
+            if current_size > target_filesize_kb:
+                current_quality = max(min_quality, current_quality - 10)
+            else:
+                current_quality = min(95, current_quality + 5)
+                
+            attempts += 1
+        
+        # Create the final image with the determined quality
+        final_buffer = io.BytesIO()
+        resized_image.save(final_buffer, format="JPEG", quality=current_quality)
+        resized_image = Image.open(final_buffer)
+    
+    return resized_image
 
 
 def apply_enhancement(

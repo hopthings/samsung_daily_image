@@ -58,7 +58,7 @@ def test_set_active_art() -> bool:
             if hasattr(tv, 'art') and callable(getattr(tv, 'art', None)):
                 # Use the ID returned from the previous upload
                 # Save this ID when uploading images
-                image_id = "MY_F0092"  # ID from your upload result
+                image_id = "MY_F0150"  # ID from your recent upload result
 
                 try:
                     tv.art().select_image(image_id)

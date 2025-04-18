@@ -5,7 +5,7 @@ Samsung Daily Image - Main Application
 This application:
 1. Generates an art image using DALL-E 3
 2. Enhances the image for optimal display on TV
-3. Upscales the image using Topaz Photo AI (unless --skip-upscale is used)
+3. Upscales the image using Topaz Photo AI (unless --no-upscale is used)
 4. Uploads the image to a Samsung Frame TV
 5. Sets the image as the active art
 """
@@ -14,12 +14,13 @@ import os
 import sys
 import argparse
 import logging
-from typing import Optional
+import time
+from typing import Optional, List
 from dotenv import load_dotenv
 
 # Import local modules
 from generate_image import ImageGenerator
-from test_image_enhancement import load_image, save_image, apply_enhancement
+from test_image_enhancement import load_image, save_image, apply_enhancement, resize_image
 from test_enhancement_presets import get_preset_params
 from upscale_image import upscale_image
 # TVImageUploader will be imported after creating the module
@@ -59,7 +60,41 @@ class DailyArtApp:
         # Create enhanced images directory if it doesn't exist
         self.enhanced_dir = "enhanced_images"
         os.makedirs(self.enhanced_dir, exist_ok=True)
+        
+        # Track intermediate files for cleaning up
+        self.intermediate_files: List[str] = []
 
+    def clean_intermediate_files(self) -> None:
+        """Delete intermediate image files that are no longer needed.
+        Only the final version of the image should be kept.
+        """
+        if not self.intermediate_files:
+            return
+
+        self.logger.info(f"Cleaning up {len(self.intermediate_files)} intermediate files")
+        for file_path in self.intermediate_files:
+            try:
+                if os.path.exists(file_path):
+                    # Also look for associated prompt file
+                    prompt_file = None
+                    if file_path.endswith('.jpeg') or file_path.endswith('.jpg'):
+                        base_path = file_path[:-5]  # Remove .jpeg or .jpg extension
+                        prompt_file = f"{base_path}_prompt.txt"
+                    
+                    # Delete the image file
+                    os.remove(file_path)
+                    self.logger.debug(f"Deleted intermediate file: {file_path}")
+                    
+                    # Delete associated prompt file if it exists
+                    if prompt_file and os.path.exists(prompt_file):
+                        os.remove(prompt_file)
+                        self.logger.debug(f"Deleted prompt file: {prompt_file}")
+            except Exception as e:
+                self.logger.warning(f"Failed to delete intermediate file {file_path}: {e}")
+
+        # Clear the list
+        self.intermediate_files = []
+    
     def enhance_image(self, image_path: str, preset: str = "upscale-sharp") -> Optional[str]:
         """Enhance an image using the specified preset.
         
@@ -104,6 +139,12 @@ class DailyArtApp:
                 new_width, new_height = enhanced.size
                 self.logger.info(f"Enhanced size: {new_width}x{new_height}")
                 self.logger.info(f"Enhanced image saved to: {output_path}")
+                
+                # Mark the original image for cleanup if it's a generated image
+                # Don't track custom images provided by the user
+                if image_path.startswith(self.image_generator.image_dir):
+                    self.intermediate_files.append(image_path)
+                    
                 return output_path
             
             return None
@@ -116,7 +157,7 @@ class DailyArtApp:
             custom_image: Optional[str] = None,
             enhancement_preset: Optional[str] = "upscale-sharp",
             skip_upload: bool = False,
-            skip_upscale: bool = False) -> bool:
+            upscale: bool = True) -> bool:
         """Run the main application flow.
 
         Args:
@@ -125,7 +166,7 @@ class DailyArtApp:
                          generating a new one.
             enhancement_preset: Preset to use for image enhancement.
             skip_upload: If True, skip uploading to TV.
-            skip_upscale: If True, skip Topaz Photo AI upscaling step.
+            upscale: If True, upscale image with Topaz Photo AI.
 
         Returns:
             True if successful, False otherwise.
@@ -164,22 +205,76 @@ class DailyArtApp:
                     self.logger.warning("Failed to enhance image, using original")
 
             # Step 3: Upscale image with Topaz Photo AI
-            if not skip_upscale:
+            if upscale:
                 self.logger.info("Upscaling image with Topaz Photo AI...")
                 success, upscaled_path, error = upscale_image(image_path)
                 if success and upscaled_path:
                     self.logger.info(f"Image upscaled successfully: {upscaled_path}")
+                    
+                    # Check if the upscaled file is too large for reliable TV upload
+                    file_size_mb = os.path.getsize(upscaled_path) / (1024 * 1024)
+                    self.logger.info(f"Upscaled image size: {file_size_mb:.2f} MB")
+                    
+                    # Samsung Frame TVs may have issues with large uploads
+                    # If the file is very large, warn the user but continue
+                    if file_size_mb > 25:
+                        self.logger.warning(
+                            f"Upscaled image is quite large ({file_size_mb:.2f} MB). "
+                            f"This may cause upload timeouts. "
+                            f"Consider using a smaller image or disabling upscaling."
+                        )
+                    
+                    # Mark the pre-upscaled image for cleanup
+                    # Only if it's a generated or enhanced image, not a user-provided image
+                    if custom_image is None or not os.path.samefile(image_path, custom_image):
+                        self.intermediate_files.append(image_path)
+                    
                     # Use the upscaled image for upload
                     image_path = upscaled_path
                 else:
                     self.logger.warning(f"Failed to upscale image: {error}")
                     self.logger.info("Using previous image version for upload")
             else:
-                self.logger.info("Skipping Topaz upscaling as requested")
+                self.logger.info("Topaz upscaling disabled, using enhanced image directly")
 
-            # Skip uploading if requested
+            # If not uploading, still create optimized version for testing
             if skip_upload:
+                # Check file size first
+                file_size = os.path.getsize(image_path)
+                self.logger.info(f"Original image size: {file_size/1024/1024:.2f} MB")
+                
+                # If image is too large (> 10MB), resize it
+                max_upload_size = 10 * 1024 * 1024  # 10MB
+                
+                if file_size > max_upload_size:
+                    self.logger.info(f"Image is too large for reliable upload to the TV ({file_size/1024/1024:.2f} MB), creating 4K optimized version...")
+                    
+                    # Load the image
+                    img = load_image(image_path)
+                    if img:
+                        # Resize to 3840 max dimension without additional compression
+                        optimized_img = resize_image(
+                            img, 
+                            max_dimension=3840,  # Max 4K dimension
+                            target_filesize_kb=0  # No filesize targeting/compression
+                        )
+                        
+                        # Save the optimized image
+                        base_name = os.path.basename(image_path)
+                        name_root, ext = os.path.splitext(base_name)
+                        optimized_filename = f"{name_root}_optimized{ext}"
+                        optimized_image_path = os.path.join(self.enhanced_dir, optimized_filename)
+                        
+                        if save_image(optimized_img, optimized_image_path):
+                            resized_size = os.path.getsize(optimized_image_path)
+                            optimized_width, optimized_height = optimized_img.size
+                            self.logger.info(f"Resized image saved to {optimized_image_path}")
+                            self.logger.info(f"Optimized resolution: {optimized_width}x{optimized_height}")
+                            self.logger.info(f"Optimized size: {resized_size/1024/1024:.2f} MB")
+                
                 self.logger.info("Skipping upload to TV as requested")
+                # Clean up intermediate files (except the optimized version)
+                self.clean_intermediate_files()
                 return True
                 
             # Check if TV is powered on via simple ping test before attempting connection
@@ -198,29 +293,113 @@ class DailyArtApp:
             except Exception as e:
                 self.logger.warning(f"TV connectivity check failed: {e}")
 
-            # Step 3: Upload image to TV
+            # Step 4: Upload image to TV - Simplified direct approach
             self.logger.info(f"Uploading image to TV at {self.tv_ip}...")
             try:
                 if tv_uploader is None:
                     self.logger.error("TV uploader was not initialized")
                     return False
                 
-                content_id = tv_uploader.upload_image(image_path)
+                # Direct upload using same approach as the test script
+                self.logger.info("Using simplified direct upload approach...")
+                
+                # Check file size first
+                file_size = os.path.getsize(image_path)
+                self.logger.info(f"Original image size: {file_size/1024/1024:.2f} MB")
+                
+                # If image is too large (> 10MB), resize it
+                max_upload_size = 10 * 1024 * 1024  # 10MB
+                optimized_image_path = None
+                
+                if file_size > max_upload_size:
+                    self.logger.info(f"Image is too large for reliable upload to the TV ({file_size/1024/1024:.2f} MB), resizing to 4K...")
+                    
+                    # Load the image
+                    img = load_image(image_path)
+                    if img:
+                        # Resize to 3840 max dimension without additional compression
+                        optimized_img = resize_image(
+                            img, 
+                            max_dimension=3840,  # Max 4K dimension
+                            target_filesize_kb=0  # No filesize targeting/compression
+                        )
+                        
+                        # Save the optimized image
+                        base_name = os.path.basename(image_path)
+                        name_root, ext = os.path.splitext(base_name)
+                        optimized_filename = f"{name_root}_optimized{ext}"
+                        optimized_image_path = os.path.join(self.enhanced_dir, optimized_filename)
+                        
+                        if save_image(optimized_img, optimized_image_path):
+                            resized_size = os.path.getsize(optimized_image_path)
+                            optimized_width, optimized_height = optimized_img.size
+                            self.logger.info(f"Resized image saved to {optimized_image_path}")
+                            self.logger.info(f"Optimized resolution: {optimized_width}x{optimized_height}")
+                            self.logger.info(f"New size: {resized_size/1024/1024:.2f} MB")
+                            
+                            # Use the optimized image and track for cleanup
+                            image_path = optimized_image_path
+                            self.intermediate_files.append(optimized_image_path)
+                            
+                # Read the image file
+                with open(image_path, 'rb') as f:
+                    image_data = f.read()
+                    
+                # Determine file type
+                is_jpeg = image_path.lower().endswith(('.jpg', '.jpeg'))
+                file_type = 'JPEG' if is_jpeg else 'PNG'
+                
+                # Direct upload with no matte/mount
+                file_size = len(image_data)
+                self.logger.info(f"Uploading {file_size/1024/1024:.2f} MB {file_type} file")
+                content_id = tv_uploader.tv.art().upload(
+                    image_data, 
+                    file_type=file_type,
+                    matte='none',  # No frame/mount
+                    portrait_matte='none'  # For portrait orientation
+                )
+                
                 if not content_id:
                     self.logger.error("Failed to upload image to TV")
                     return False
                 self.logger.info(f"Image uploaded successfully. ID: {content_id}")
                 
-                # Step 4: Set as active art
+                # Add a longer delay between upload and setting active
+                delay_seconds = 8  # Increased to 8 seconds
+                self.logger.info(f"Waiting {delay_seconds} seconds between upload and setting active...")
+                time.sleep(delay_seconds)
+                
+                # Step 5: Set as active art
                 self.logger.info("Setting image as active art...")
-                if not tv_uploader.set_active_art(content_id):
-                    self.logger.error("Failed to set image as active art")
-                    # Continue and return success anyway since the image was uploaded
-                    # This ensures we don't completely fail if only the "set active" step fails
-                    self.logger.warning("Image was uploaded but couldn't be set as active")
-                    self.logger.info("You can manually set the image in TV's Art Mode menu")
-                    return True
-                self.logger.info("Image successfully set as active art")
+                
+                # Save the content ID to a file
+                try:
+                    with open("last_uploaded_id.txt", "w") as f:
+                        f.write(f"{content_id}")
+                    self.logger.debug(f"Saved content ID to last_uploaded_id.txt")
+                except Exception as e:
+                    self.logger.debug(f"Could not save content ID to file: {e}")
+                
+                # First remove any matte/mount
+                self.logger.info("Removing matte/frame from image...")
+                try:
+                    # Set matte to 'none' to remove any frame/mount
+                    tv_uploader.tv.art().change_matte(content_id, matte_id='none')
+                    self.logger.info(f"Removed matte for content ID: {content_id}")
+                    
+                    # Wait a moment for the matte change to be processed
+                    time.sleep(2)
+                except Exception as e:
+                    self.logger.warning(f"Could not remove matte: {e}")
+                    # Continue anyway - not critical
+                
+                # Direct set active call
+                self.logger.info("Using simplified direct set active approach...")
+                tv_uploader.tv.art().select_image(content_id)
+                self.logger.info(f"Image {content_id} successfully set as active art")
+                
+                # Clean up intermediate files
+                self.clean_intermediate_files()
                 
                 return True
             except Exception as e:
@@ -237,11 +416,18 @@ class DailyArtApp:
                     self.logger.warning("Connection to TV timed out - network may be unstable")
                     self.logger.info("Check that the TV is connected to the same network as this computer")
                     
+                # Clean up intermediate files even though we had an error
+                self.clean_intermediate_files()
                 # Return true since we did successfully generate the image
                 return True
 
         except Exception as e:
             self.logger.exception(f"Error in application flow: {e}")
+            # Try to clean up intermediate files even after an exception
+            try:
+                self.clean_intermediate_files()
+            except Exception as cleanup_error:
+                self.logger.warning(f"Error during cleanup: {cleanup_error}")
             return False
 
 
@@ -401,9 +587,10 @@ def main() -> None:
         help="Skip uploading to TV - useful for testing."
     )
     parser.add_argument(
-        "--skip-upscale", "-u",
-        action="store_true",
-        help="Skip Topaz Photo AI upscaling step."
+        "--no-upscale", "-n",
+        action="store_false",
+        dest="upscale",
+        help="Skip Topaz Photo AI upscaling step"
     )
     parser.add_argument(
         "--debug", "-d",
@@ -436,7 +623,7 @@ def main() -> None:
         args.image, 
         enhancement_preset,
         args.skip_upload,
-        args.skip_upscale
+        args.upscale
     )
 
     if success:
