@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 """
-Module for upscaling images using Topaz Photo AI CLI.
+Module for upscaling images using PIL with Lanczos resampling.
+Compatible with Raspberry Pi and simpler than RealESRGAN.
 """
 
-import subprocess
-import tempfile
 import sys
-import platform
-import os
 import logging
-import shutil
 from pathlib import Path
+import tempfile
+import shutil
 from typing import Optional, Union, Tuple
+from PIL import Image, ImageFilter, ImageEnhance
 
 # Set up a logger for this module
 logger = logging.getLogger(__name__)
@@ -21,7 +20,9 @@ def upscale_image(
     input_path: Union[str, Path]
 ) -> Tuple[bool, Optional[str], Optional[str]]:
     """
-    Upscale an image using Topaz Photo AI.
+    Upscale an image using PIL's high-quality Lanczos resampling.
+    This is a lightweight alternative to TopazPhoto AI that works on
+    Raspberry Pi.
 
     Args:
         input_path: Path to the image file to upscale
@@ -50,101 +51,46 @@ def upscale_image(
     # Create temporary directory to work in
     with tempfile.TemporaryDirectory() as temp_dir:
         try:
-            # Determine Topaz executable path based on OS
-            if platform.system() == "Darwin":  # macOS
-                tpai_exe = "tpai"
-            elif platform.system() == "Windows":
-                tpai_exe = (
-                    r"C:\Program Files\Topaz Labs LLC\Topaz Photo AI\tpai.exe"
-                )
-            else:
-                return (
-                    False,
-                    None,
-                    f"Unsupported operating system: {platform.system()}"
-                )
-
-            # Create a temporary copy of the input file
+            # Create temporary file paths
             temp_input = Path(temp_dir) / input_path.name
-            shutil.copy2(input_path, temp_input)
-            
-            # Absolute path to the temp input file
             abs_temp_input = str(temp_input.absolute())
-            
-            # First try with the standard CLI approach
-            logger.info(f"Running Topaz Photo AI on: {abs_temp_input}")
-            
-            # Run the CLI command 
-            command = [
-                tpai_exe,
-                "--cli",
-                abs_temp_input,
-                "--upscale",
-                "--overwrite"
-            ]
-
-            result = subprocess.run(
-                command,
-                capture_output=True,
-                text=True,
-                check=False
+            # Copy input file to temp directory
+            shutil.copy2(input_path, temp_input)
+            logger.info(f"Processing image: {abs_temp_input}")
+            # Load the image
+            img = Image.open(abs_temp_input).convert('RGB')
+            # Get original dimensions
+            orig_width, orig_height = img.size
+            logger.info(f"Original dimensions: {orig_width}x{orig_height}")
+            # Calculate new dimensions (2x upscaling)
+            new_width = orig_width * 2
+            new_height = orig_height * 2
+            # Apply a slight sharpening filter first for better details
+            img = img.filter(ImageFilter.SHARPEN)
+            # Resize the image using high-quality Lanczos resampling
+            img_upscaled = img.resize(
+                (new_width, new_height),
+                resample=Image.Resampling.LANCZOS
             )
-            
-            success = False
-            
-            # Check if the command succeeded
-            if result.returncode in [0, 1]:  # 0=success, 1=partial success
-                if temp_input.exists():
-                    # Copy the upscaled temp file to our output path
-                    shutil.copy2(temp_input, output_path)
-                    success = True
-            
-            # If first attempt failed, try alternative approach with shell=True
-            if not success:
-                logger.warning(
-                    f"First approach failed with return code {result.returncode}. "
-                    f"Error: {result.stderr}"
-                )
-                logger.info("Trying alternative approach with shell=True...")
-                
-                # Re-copy the original to the temp location (in case it was modified)
-                if temp_input.exists():
-                    os.remove(temp_input)
-                shutil.copy2(input_path, temp_input)
-                
-                # Build command with quoted paths for shell execution
-                shell_cmd = f'{tpai_exe} --cli "{abs_temp_input}" --upscale --overwrite'
-                
-                result = subprocess.run(
-                    shell_cmd,
-                    shell=True,
-                    capture_output=True,
-                    text=True,
-                    check=False
-                )
-                
-                # Check if second attempt succeeded
-                if result.returncode in [0, 1]:
-                    if temp_input.exists():
-                        shutil.copy2(temp_input, output_path)
-                        success = True
-            
-            # Return result based on success flag
-            if success:
-                if output_path.exists():
-                    return True, str(output_path), None
-                else:
-                    return False, None, "Failed to create output file"
+            # Enhance the upscaled image
+            # Apply sharpening to counter the softness from upscaling
+            enhancer = ImageEnhance.Sharpness(img_upscaled)
+            img_enhanced = enhancer.enhance(1.2)  # 1.2x sharpening
+            # Apply slight contrast enhancement
+            contrast_enhancer = ImageEnhance.Contrast(img_enhanced)
+            img_enhanced = contrast_enhancer.enhance(1.05)  # 1.05x contrast
+            # Save the result to output path
+            img_enhanced.save(
+                output_path,
+                quality=95,  # High quality JPEG
+                optimize=True  # Optimize file size
+            )
+            if output_path.exists():
+                logger.info(f"Upscaled image saved to: {output_path}")
+                logger.info(f"New dimensions: {new_width}x{new_height}")
+                return True, str(output_path), None
             else:
-                # Prepare debug info for error reporting
-                debug_info = (
-                    f"Command: {command if isinstance(command, str) else ' '.join(str(x) for x in command)}\n"
-                    f"Return code: {result.returncode}\n"
-                    f"Stderr: {result.stderr}\n"
-                    f"Stdout: {result.stdout}\n"
-                )
-                return False, None, f"Topaz Photo AI failed: {debug_info}"
-                
+                return False, None, "Failed to save output file"
         except Exception as e:
             return False, None, f"Error during upscaling: {str(e)}"
 
@@ -161,7 +107,6 @@ def main() -> int:
         level=logging.INFO,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
-    
     # Check if input file was provided
     if len(sys.argv) != 2:
         print(f"Usage: {sys.argv[0]} <image_path>")
@@ -184,4 +129,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

@@ -75,17 +75,17 @@ echo "Finished with exit code: $EXIT_CODE" >> "$PROJECT_DIR/daily_run.log"
 echo "===== Completed at $(date) =====" >> "$PROJECT_DIR/daily_run.log"
 echo "" >> "$PROJECT_DIR/daily_run.log"
 
-MAX_RETRIES=3
-RETRY_COUNT=0
+# MAX_RETRIES=3
+# RETRY_COUNT=0
 
-while [ "$EXIT_CODE" -ne 0 ] && [ "$RETRY_COUNT" -lt "$MAX_RETRIES" ]; do
-    RETRY_COUNT=$((RETRY_COUNT + 1))
-    echo "Attempt $RETRY_COUNT failed with exit code $EXIT_CODE. Retrying in 30 minutes..." >> "$PROJECT_DIR/daily_run.log"
-    sleep 1800
-    echo "===== Retry #$RETRY_COUNT at $(date) =====" >> "$PROJECT_DIR/daily_run.log"
-    "$PYTHON_PATH" "$PROJECT_DIR/main.py" >> "$PROJECT_DIR/daily_run.log" 2>&1
-    EXIT_CODE=$?
-    echo "Retry #$RETRY_COUNT finished with exit code: $EXIT_CODE" >> "$PROJECT_DIR/daily_run.log"
-done
+# while [ "$EXIT_CODE" -ne 0 ] && [ "$RETRY_COUNT" -lt "$MAX_RETRIES" ]; do
+#     RETRY_COUNT=$((RETRY_COUNT + 1))
+#     echo "Attempt $RETRY_COUNT failed with exit code $EXIT_CODE. Retrying in 30 minutes..." >> "$PROJECT_DIR/daily_run.log"
+#     sleep 1800
+#     echo "===== Retry #$RETRY_COUNT at $(date) =====" >> "$PROJECT_DIR/daily_run.log"
+#     "$PYTHON_PATH" "$PROJECT_DIR/main.py" >> "$PROJECT_DIR/daily_run.log" 2>&1
+#     EXIT_CODE=$?
+#     echo "Retry #$RETRY_COUNT finished with exit code: $EXIT_CODE" >> "$PROJECT_DIR/daily_run.log"
+# done
 
 exit $EXIT_CODE

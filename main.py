@@ -5,7 +5,7 @@ Samsung Daily Image - Main Application
 This application:
 1. Generates an art image using DALL-E 3
 2. Enhances the image for optimal display on TV
-3. Upscales the image using Topaz Photo AI (unless --no-upscale is used)
+3. Upscales the image 
 4. Uploads the image to a Samsung Frame TV
 5. Sets the image as the active art
 """
@@ -166,7 +166,7 @@ class DailyArtApp:
                          generating a new one.
             enhancement_preset: Preset to use for image enhancement.
             skip_upload: If True, skip uploading to TV.
-            upscale: If True, upscale image with Topaz Photo AI.
+            upscale: If True, upscale image.
 
         Returns:
             True if successful, False otherwise.
@@ -204,9 +204,9 @@ class DailyArtApp:
                 else:
                     self.logger.warning("Failed to enhance image, using original")
 
-            # Step 3: Upscale image with Topaz Photo AI
+            # Step 3: Upscale image 
             if upscale:
-                self.logger.info("Upscaling image with Topaz Photo AI...")
+                self.logger.info("Upscaling image...")
                 success, upscaled_path, error = upscale_image(image_path)
                 if success and upscaled_path:
                     self.logger.info(f"Image upscaled successfully: {upscaled_path}")
@@ -235,7 +235,7 @@ class DailyArtApp:
                     self.logger.warning(f"Failed to upscale image: {error}")
                     self.logger.info("Using previous image version for upload")
             else:
-                self.logger.info("Topaz upscaling disabled, using enhanced image directly")
+                self.logger.info("Upscaling disabled, using enhanced image directly")
 
             # If not uploading, still create optimized version for testing
             if skip_upload:
@@ -590,7 +590,7 @@ def main() -> None:
         "--no-upscale", "-n",
         action="store_false",
         dest="upscale",
-        help="Skip Topaz Photo AI upscaling step"
+        help="Skip upscaling step"
     )
     parser.add_argument(
         "--debug", "-d",
