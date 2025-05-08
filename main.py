@@ -364,8 +364,8 @@ class DailyArtApp:
                     return False
                 self.logger.info(f"Image uploaded successfully. ID: {content_id}")
                 
-                # Add a longer delay between upload and setting active
-                delay_seconds = 8  # Increased to 8 seconds
+                # Add a much longer delay between upload and setting active
+                delay_seconds = 15  # Increased to 15 seconds to ensure TV has time to process the upload
                 self.logger.info(f"Waiting {delay_seconds} seconds between upload and setting active...")
                 time.sleep(delay_seconds)
                 
@@ -393,10 +393,14 @@ class DailyArtApp:
                     self.logger.warning(f"Could not remove matte: {e}")
                     # Continue anyway - not critical
                 
-                # Direct set active call
-                self.logger.info("Using simplified direct set active approach...")
-                tv_uploader.tv.art().select_image(content_id)
-                self.logger.info(f"Image {content_id} successfully set as active art")
+                # Use improved set_active_art method
+                self.logger.info("Using improved set_active_art approach with multiple fallbacks...")
+                success = tv_uploader.set_active_art(content_id)
+                if success:
+                    self.logger.info(f"Image {content_id} successfully set as active art")
+                else:
+                    self.logger.warning(f"Failed to set image {content_id} as active through primary methods")
+                    self.logger.info("Image was uploaded successfully but may not be displayed")
                 
                 # Clean up intermediate files
                 self.clean_intermediate_files()

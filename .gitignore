@@ -31,3 +31,4 @@ daily_art.log
 # Local configuration files
 *.plist
 CLAUDE.md
+**/.claude/settings.local.json

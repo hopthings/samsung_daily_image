@@ -4,14 +4,14 @@
 import os
 import sys
 import time
-import urllib3  # type: ignore
+import urllib3
 import logging
 import socket
 import requests
 from typing import Optional, Any, Callable, TypeVar, cast, Type, Tuple
 from dotenv import load_dotenv
-from samsungtvws import SamsungTVWS  # type: ignore
-from samsungtvws.exceptions import HttpApiError  # type: ignore
+from samsungtvws import SamsungTVWS  # type: ignore # Missing module typings
+from samsungtvws.exceptions import HttpApiError  # type: ignore # Missing module typings
 
 
 # Suppress InsecureRequestWarning for local TV connections
@@ -124,7 +124,7 @@ class TVImageUploader:
             return False
         except Exception as e:
             logger.debug(f"TV availability check failed: {e}")
-            return False  # type: ignore
+            return False  # type: ignore # Return type issue flagged by mypy
             
     @retry(max_attempts=5, delay=10.0)
     def _initialize_tv_connection(self) -> None:
@@ -191,12 +191,12 @@ class TVImageUploader:
                 
                 # Force create a new connection with these timeouts
                 if hasattr(self.tv, '_connection'):
-                    if hasattr(self.tv._connection, 'close'):  # type: ignore
-                        self.tv._connection.close()  # type: ignore
-                    self.tv._connection = None  # type: ignore
+                    if hasattr(self.tv._connection, 'close'):
+                        self.tv._connection.close()
+                    self.tv._connection = None
                     
                 # Call upload with the new timeouts
-                content_id = self.tv.art().upload(  # type: ignore
+                content_id = self.tv.art().upload(
                     data,
                     file_type=file_type,
                     matte='none',  # No frame/mount
@@ -207,18 +207,23 @@ class TVImageUploader:
                 setattr(self.tv, 'timeout', original_timeout)
             logger.info(f"Uploaded image without matte, content ID: {content_id}")
             
-            # Add a delay after successful upload to let the TV process it
-            delay_seconds = min(5, int(expected_seconds / 4))  # At least 1/4 of upload time or max 5 seconds
+            # Add a significant delay after successful upload to let the TV process it
+            delay_seconds = min(15, max(10, int(expected_seconds / 3)))  # At least 10 seconds, or more for larger files
             logger.info(f"Waiting {delay_seconds} seconds for TV to process the image...")
             time.sleep(delay_seconds)
             
-            # Save this content ID for debugging purposes
+            # Save this content ID for debugging and reliable art selection
             try:
+                with open("last_uploaded_id.txt", "w") as f:
+                    f.write(f"{content_id}")
+                logger.info(f"Saved content ID '{content_id}' to last_uploaded_id.txt")
+                
+                # Also maintain the old filename for backward compatibility
                 with open("last_content_id.txt", "w") as f:
                     f.write(f"{content_id}")
-                logger.debug(f"Saved content ID to last_content_id.txt")
+                logger.debug(f"Also saved content ID to last_content_id.txt")
             except Exception as e:
-                logger.debug(f"Could not save content ID to file: {e}")
+                logger.warning(f"Could not save content ID to file: {e}")
             
             return cast(Optional[str], content_id)
         except Exception as e:
@@ -230,7 +235,7 @@ class TVImageUploader:
                     # Wait a moment for any pending operations
                     time.sleep(5)
                     # Try to get content list to see if our upload went through
-                    content_list = self.tv.art().get_content_list()  # type: ignore
+                    content_list = self.tv.art().get_content_list()
                     if content_list and len(content_list) > 0:
                         # Log found content IDs for debugging
                         ids = [item.get("content_id", "unknown") for item in content_list[:5]]
@@ -246,6 +251,25 @@ class TVImageUploader:
             # Re-raise the original exception to trigger retry
             raise
 
+    # Specialized retry decorator for the select_image operation
+    @retry(max_attempts=12, delay=8.0, backoff_factor=1.5)
+    def _select_image_with_retry(self, image_id: str) -> bool:
+        """Retry wrapper specifically for the select_image operation.
+        
+        Args:
+            image_id: Content ID to set as active.
+            
+        Returns:
+            True if successful, False otherwise.
+        
+        Raises:
+            Exception: If select_image fails.
+        """
+        logger.info(f"Attempting to select image with ID: {image_id} (with retries)")
+        self.tv.art().select_image(image_id)
+        logger.info(f"Successfully set image with ID: {image_id} as active")
+        return True
+
     @retry(max_attempts=8, delay=10.0, backoff_factor=1.5)
     def set_active_art(self, content_id: str) -> bool:
         """Set an uploaded image as the active art.
@@ -259,116 +283,161 @@ class TVImageUploader:
         # Log the content ID we're trying to set
         logger.info(f"Attempting to set content ID as active: {content_id}")
         
-        # Read content ID from file for verification
+        # Read content ID from file for verification and possible fallback
+        stored_id = None
         try:
-            if os.path.exists("last_content_id.txt"):
+            # Try the new filename first
+            if os.path.exists("last_uploaded_id.txt"):
+                with open("last_uploaded_id.txt", "r") as f:
+                    stored_id = f.read().strip()
+                    if stored_id and stored_id != content_id:
+                        logger.warning(f"Warning: Content ID mismatch. File has: {stored_id}, Passed: {content_id}")
+                        # We'll still try the provided ID first, but keep the stored one as fallback
+            # Try old filename as fallback
+            elif os.path.exists("last_content_id.txt"):
                 with open("last_content_id.txt", "r") as f:
                     stored_id = f.read().strip()
                     if stored_id and stored_id != content_id:
-                        logger.warning(f"Warning: Content ID mismatch. Stored: {stored_id}, Current: {content_id}")
-                        # Continue with the provided content_id anyway
+                        logger.warning(f"Warning: Content ID mismatch from old file. Stored: {stored_id}, Current: {content_id}")
         except Exception as e:
-            logger.debug(f"Could not read stored content ID: {e}")
+            logger.warning(f"Could not read stored content ID: {e}")
         
-        # Try to ensure TV is in Art Mode
+        # More robust Art Mode switching with multiple attempts
+        art_mode_success = False
+        # Method 1: Use set_artmode API
         try:
-            self.tv.art().set_artmode(True)  # type: ignore
-            logger.info("Set TV to Art Mode")
-            # Wait for Art Mode to fully activate
-            time.sleep(3)
+            logger.info("Trying to set TV to Art Mode using set_artmode API...")
+            self.tv.art().set_artmode(True)
+            # Wait longer for Art Mode to fully activate
+            time.sleep(8)  # Increased from 3 to 8 seconds
+            art_mode_success = True
+            logger.info("Successfully set TV to Art Mode")
         except Exception as e:
-            # Art mode switching sometimes fails, but we can still
-            # set the active image
-            logger.warning(f"Could not set Art Mode: {e}")
+            logger.warning(f"Could not set Art Mode via API: {e}")
             
-            # Try alternative KEY_ART approach
+        # Method 2: Use KEY_ART remote command if Method 1 failed
+        if not art_mode_success:
             try:
-                self.tv.send_key("KEY_ART")  # type: ignore
+                logger.info("Trying to set TV to Art Mode using KEY_ART command...")
+                self.tv.send_key("KEY_ART")
+                # Wait even longer for this method
+                time.sleep(10)  # Increased to 10 seconds
+                art_mode_success = True
                 logger.info("Sent KEY_ART command to TV")
-                # Wait longer for the TV to switch modes
-                time.sleep(5)
             except Exception as e:
                 logger.warning(f"Could not send KEY_ART command: {e}")
-
-        # First remove any matte/mount
+        
+        # Method 3: Last resort try a second KEY_ART
+        if not art_mode_success:
+            try:
+                logger.info("Final attempt to set Art Mode with KEY_ART...")
+                # Wait a moment before trying again
+                time.sleep(2)
+                self.tv.send_key("KEY_ART")
+                time.sleep(12)  # Even longer delay on final attempt
+                art_mode_success = True
+                logger.info("Sent second KEY_ART command to TV")
+            except Exception as e:
+                logger.warning(f"Could not send second KEY_ART command: {e}")
+        
+        if not art_mode_success:
+            logger.warning("Could not confirm TV is in Art Mode - proceeding anyway")
+        
+        # Remove any matte/mount for the art we're trying to set
         try:
-            # Set matte to 'none' to remove any frame/mount
-            self.tv.art().change_matte(content_id, matte_id='none')  # type: ignore
-            logger.info(f"Removed matte for content ID: {content_id}")
-            # Wait for matte change to be processed
-            time.sleep(2)
+            logger.info(f"Removing matte for content ID: {content_id}")
+            self.tv.art().change_matte(content_id, matte_id='none')
+            # Increased wait time
+            time.sleep(5)  # Increased from 2 to 5 seconds
+            logger.info("Successfully removed matte")
         except Exception as e:
             logger.warning(f"Could not remove matte: {e}")
             # Continue anyway - not critical
 
         # Add a longer delay to ensure changes are fully processed by the TV
-        logger.info("Waiting 3 seconds before setting active art...")
-        time.sleep(3)
+        logger.info("Waiting 10 seconds before setting active art...")
+        time.sleep(10)  # Increased from 3 to 10 seconds
         
-        # Set the image as active
+        # Try multiple approaches to set the active image, in order of preference
+        
+        # Approach 1: Use the content_id directly with retry
         try:
-            self.tv.art().select_image(content_id)  # type: ignore
-            logger.info(f"Set image with ID: {content_id} as active")
-            return True
+            logger.info(f"Attempt 1: Setting image ID {content_id} as active (with dedicated retry)...")
+            success = self._select_image_with_retry(content_id)
+            if success:
+                return True
         except Exception as e:
-            logger.warning(f"Could not set primary image as active: {e}")
-
-            # Try alternative approach
-            logger.info("Trying alternative approach to set active image")
-            try:
-                content_list = self.tv.art().get_content_list()  # type: ignore
+            logger.warning(f"Primary method to set image failed: {e}")
+        
+        # Approach 2: Get the content list and find our image
+        logger.info("Attempt 2: Trying to find our image in the content list...")
+        try:
+            content_list = self.tv.art().get_content_list()
+            
+            if content_list and len(content_list) > 0:
+                # Log all available content IDs for debugging
+                all_ids = ", ".join([item.get("content_id", "unknown") for item in content_list[:10]])
+                logger.info(f"Available content IDs (up to 10): {all_ids}")
                 
-                if content_list and len(content_list) > 0:
-                    # Log available content IDs for debugging
-                    all_ids = ", ".join([item.get("content_id", "unknown") for item in content_list[:5]])
-                    logger.info(f"Available content IDs (up to 5): {all_ids}")
-                    
-                    # Look for our specific content_id first
-                    target_id = content_id  # Default to the original ID
-                    found = False
-                    
+                # Look for our specific content_id first
+                target_id = None
+                found_primary = False
+                found_fallback = False
+                
+                # First, look for the content_id we were given
+                for item in content_list:
+                    if item.get("content_id") == content_id:
+                        target_id = content_id
+                        found_primary = True
+                        logger.info(f"Found our primary content ID in the list: {content_id}")
+                        break
+                
+                # If primary not found but we have a stored fallback, try that
+                if not found_primary and stored_id:
                     for item in content_list:
-                        if item.get("content_id") == content_id:
-                            found = True
-                            logger.info(f"Found our content ID in the list: {content_id}")
+                        if item.get("content_id") == stored_id:
+                            target_id = stored_id
+                            found_fallback = True
+                            logger.info(f"Found our fallback content ID in the list: {stored_id}")
                             break
-                    
-                    if not found and len(content_list) > 0:
-                        # Use first available if ours not found
-                        target_id = cast(str, content_list[0].get("content_id"))
-                        logger.info(f"Our content ID not found in list, using first available: {target_id}")
-
-                    # First try to remove matte for the target image
+                
+                # If neither found, use the most recent one (first in list)
+                if not found_primary and not found_fallback and len(content_list) > 0:
+                    target_id = cast(str, content_list[0].get("content_id"))
+                    logger.info(f"Our content IDs not found in list, using most recent: {target_id}")
+                
+                if target_id:
+                    # Try to remove matte for the target image
                     try:
-                        # Set matte to 'none' to remove any frame/mount
-                        self.tv.art().change_matte(  # type: ignore
-                            target_id, matte_id='none'
-                        )
+                        self.tv.art().change_matte(target_id, matte_id='none')
                         logger.info(f"Removed matte for target ID: {target_id}")
+                        time.sleep(3)  # Small delay after matte removal
                     except Exception as e:
                         logger.warning(f"Could not remove matte for target image: {e}")
-
-                    # Then set as active
-                    self.tv.art().select_image(target_id)  # type: ignore
-                    logger.info(f"Set target image ID: {target_id} as active")
-                    return True
+                    
+                    # Try setting the image with retry
+                    try:
+                        success = self._select_image_with_retry(target_id)
+                        if success:
+                            return True
+                    except Exception as e:
+                        logger.warning(f"Could not set target image as active: {e}")
                 else:
-                    logger.error("No content available in the list")
+                    logger.error("No valid target ID found in content list")
+            else:
+                logger.error("No content available in the list")
+        except Exception as e:
+            logger.warning(f"Could not get content list: {e}")
+        
+        # Approach 3: Final fallback - try once more with stored ID
+        if stored_id and stored_id != content_id:
+            logger.info(f"Attempt 3: Final try with stored content ID: {stored_id}")
+            try:
+                self.tv.art().select_image(stored_id)
+                logger.info(f"Set fallback image ID: {stored_id} as active")
+                return True
             except Exception as e:
-                logger.warning(f"Could not get content list: {e}")
-                
-                # Final fallback - try using most recent content ID from file
-                try:
-                    if os.path.exists("last_content_id.txt"):
-                        with open("last_content_id.txt", "r") as f:
-                            stored_id = f.read().strip()
-                            if stored_id and stored_id != content_id:
-                                logger.info(f"Trying stored content ID as fallback: {stored_id}")
-                                self.tv.art().select_image(stored_id)  # type: ignore
-                                logger.info(f"Set fallback image ID: {stored_id} as active")
-                                return True
-                except Exception as e:
-                    logger.debug(f"Fallback method failed: {e}")
-            
-            logger.error("All methods to set active art failed")
-            return False
+                logger.warning(f"Stored ID fallback method failed: {e}")
+        
+        logger.error("All methods to set active art failed")
+        return False
