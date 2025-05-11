@@ -245,7 +245,8 @@ class DailyArtApp:
                 
                 # If image is too large (> 10MB), resize it
                 max_upload_size = 10 * 1024 * 1024  # 10MB
-                
+                skip_optimized_path: Optional[str] = None
+
                 if file_size > max_upload_size:
                     self.logger.info(f"Image is too large for reliable upload to the TV ({file_size/1024/1024:.2f} MB), creating 4K optimized version...")
                     
@@ -263,12 +264,12 @@ class DailyArtApp:
                         base_name = os.path.basename(image_path)
                         name_root, ext = os.path.splitext(base_name)
                         optimized_filename = f"{name_root}_optimized{ext}"
-                        optimized_image_path = os.path.join(self.enhanced_dir, optimized_filename)
-                        
-                        if save_image(optimized_img, optimized_image_path):
-                            resized_size = os.path.getsize(optimized_image_path)
+                        skip_optimized_path = os.path.join(self.enhanced_dir, optimized_filename)
+
+                        if save_image(optimized_img, skip_optimized_path):
+                            resized_size = os.path.getsize(skip_optimized_path)
                             optimized_width, optimized_height = optimized_img.size
-                            self.logger.info(f"Resized image saved to {optimized_image_path}")
+                            self.logger.info(f"Resized image saved to {skip_optimized_path}")
                             self.logger.info(f"Optimized resolution: {optimized_width}x{optimized_height}")
                             self.logger.info(f"Optimized size: {resized_size/1024/1024:.2f} MB")
                 
@@ -309,8 +310,8 @@ class DailyArtApp:
                 
                 # If image is too large (> 10MB), resize it
                 max_upload_size = 10 * 1024 * 1024  # 10MB
-                optimized_image_path = None
-                
+                upload_optimized_path: Optional[str] = None
+
                 if file_size > max_upload_size:
                     self.logger.info(f"Image is too large for reliable upload to the TV ({file_size/1024/1024:.2f} MB), resizing to 4K...")
                     
@@ -328,18 +329,18 @@ class DailyArtApp:
                         base_name = os.path.basename(image_path)
                         name_root, ext = os.path.splitext(base_name)
                         optimized_filename = f"{name_root}_optimized{ext}"
-                        optimized_image_path = os.path.join(self.enhanced_dir, optimized_filename)
-                        
-                        if save_image(optimized_img, optimized_image_path):
-                            resized_size = os.path.getsize(optimized_image_path)
+                        upload_optimized_path = os.path.join(self.enhanced_dir, optimized_filename)
+
+                        if save_image(optimized_img, upload_optimized_path):
+                            resized_size = os.path.getsize(upload_optimized_path)
                             optimized_width, optimized_height = optimized_img.size
-                            self.logger.info(f"Resized image saved to {optimized_image_path}")
+                            self.logger.info(f"Resized image saved to {upload_optimized_path}")
                             self.logger.info(f"Optimized resolution: {optimized_width}x{optimized_height}")
                             self.logger.info(f"New size: {resized_size/1024/1024:.2f} MB")
-                            
+
                             # Use the optimized image and track for cleanup
-                            image_path = optimized_image_path
-                            self.intermediate_files.append(optimized_image_path)
+                            image_path = upload_optimized_path
+                            self.intermediate_files.append(upload_optimized_path)
                             
                 # Read the image file
                 with open(image_path, 'rb') as f:
@@ -395,11 +396,31 @@ class DailyArtApp:
                 
                 # Use improved set_active_art method
                 self.logger.info("Using improved set_active_art approach with multiple fallbacks...")
-                success = tv_uploader.set_active_art(content_id)
-                if success:
-                    self.logger.info(f"Image {content_id} successfully set as active art")
-                else:
-                    self.logger.warning(f"Failed to set image {content_id} as active through primary methods")
+
+                # Add additional delay before setting active art
+                delay_seconds_before = 10  # Wait longer to ensure TV is ready
+                self.logger.info(f"Waiting {delay_seconds_before} seconds before setting active art...")
+                time.sleep(delay_seconds_before)
+
+                # Now try to set the active art with proper retry and error handling
+                try:
+                    success = tv_uploader.set_active_art(content_id)
+                    if success:
+                        self.logger.info(f"Image {content_id} successfully set as active art")
+                    else:
+                        self.logger.warning(f"Failed to set image {content_id} as active through primary methods")
+                        self.logger.info("Attempting additional retry with fallback method...")
+
+                        # Additional retry with longer delay
+                        time.sleep(15)  # Even longer delay for final retry
+                        success = tv_uploader.set_active_art(content_id)
+                        if success:
+                            self.logger.info(f"Image {content_id} successfully set as active art on second attempt")
+                        else:
+                            self.logger.warning(f"Failed to set image {content_id} as active art despite retries")
+                            self.logger.info("Image was uploaded successfully but may not be displayed")
+                except Exception as e:
+                    self.logger.warning(f"Error setting active art: {e}")
                     self.logger.info("Image was uploaded successfully but may not be displayed")
                 
                 # Clean up intermediate files
