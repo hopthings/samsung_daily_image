@@ -88,9 +88,9 @@ else
     echo ".env file not found at $SCRIPT_DIR/.env" >> "$LOG_FILE"
 fi
 
-# Run the app with Python
-echo "Running main.py..." >> "$LOG_FILE"
-"$PYTHON_PATH" "$SCRIPT_DIR/main.py" >> "$LOG_FILE" 2>&1
+# Run the app with Python and verbose logging for better debugging
+echo "Running main.py with verbose logging..." >> "$LOG_FILE"
+"$PYTHON_PATH" "$SCRIPT_DIR/main.py" --verbose >> "$LOG_FILE" 2>&1
 EXIT_CODE=$?
 
 # Record completion
@@ -108,7 +108,7 @@ echo "" >> "$LOG_FILE"
 #     echo "Attempt $RETRY_COUNT failed with exit code $EXIT_CODE. Retrying in 30 minutes..." >> "$LOG_FILE"
 #     sleep 1800
 #     echo "===== Retry #$RETRY_COUNT at $(date) =====" >> "$LOG_FILE"
-#     "$PYTHON_PATH" "$SCRIPT_DIR/main.py" >> "$LOG_FILE" 2>&1
+#     "$PYTHON_PATH" "$SCRIPT_DIR/main.py" --verbose >> "$LOG_FILE" 2>&1
 #     EXIT_CODE=$?
 #     echo "Retry #$RETRY_COUNT finished with exit code: $EXIT_CODE" >> "$LOG_FILE"
 # done

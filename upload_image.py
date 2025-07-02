@@ -132,17 +132,43 @@ class TVImageUploader:
         logger.info(f"Connecting to Samsung TV at {self.tv_ip}...")
         
         # First check if TV is available
+        logger.debug(f"Checking TV availability at {self.tv_ip}:8002")
         if not self.is_tv_available():
             logger.warning(f"TV at {self.tv_ip} appears to be unreachable or powered off")
+            logger.debug("TV availability check failed - socket connection or API check failed")
             raise ConnectionError("TV is unreachable - it may be powered off or in deep sleep mode")
             
+        logger.debug("TV availability check passed")
+        
         # Proceed with actual connection with increased timeouts
-        self.tv = SamsungTVWS(
-            self.tv_ip, 
-            port=8002, 
-            name="DailyArtApp",
-            timeout=90  # Increased timeout for all operations
-        )
+        try:
+            logger.debug(f"Creating SamsungTVWS connection with timeout=90")
+            self.tv = SamsungTVWS(
+                self.tv_ip, 
+                port=8002, 
+                name="DailyArtApp",
+                timeout=90  # Increased timeout for all operations
+            )
+            logger.info("Successfully created Samsung TV connection object")
+            
+            # Test the connection by trying to get device info
+            try:
+                logger.debug("Testing TV connection by attempting to get device info")
+                if hasattr(self.tv, 'rest_device_info'):
+                    device_info = self.tv.rest_device_info()
+                    logger.debug(f"Device info response: {device_info}")
+                elif hasattr(self.tv, 'info'):
+                    info = self.tv.info()
+                    logger.debug(f"TV info response: {info}")
+                logger.info("TV connection test successful")
+            except Exception as test_error:
+                logger.warning(f"TV connection test failed but continuing: {test_error}")
+                
+        except Exception as conn_error:
+            logger.error(f"Failed to create TV connection: {conn_error}")
+            logger.debug(f"Connection error details: {type(conn_error).__name__}: {conn_error}")
+            raise
+            
         logger.info("Successfully connected to Samsung TV")
 
     @retry(max_attempts=8, delay=10.0, backoff_factor=1.5)
@@ -184,28 +210,45 @@ class TVImageUploader:
             
             # Temporarily update the connection timeout
             original_timeout = getattr(self.tv, 'timeout', 90)
+            logger.debug(f"Original timeout was: {original_timeout}s")
             
             try:
                 # Set the dynamic timeout on the TV object
                 setattr(self.tv, 'timeout', dynamic_timeout)
+                logger.debug(f"Updated TV timeout to: {dynamic_timeout}s")
                 
                 # Force create a new connection with these timeouts
                 if hasattr(self.tv, '_connection'):
+                    logger.debug("Closing existing TV connection to refresh timeout")
                     if hasattr(self.tv._connection, 'close'):
                         self.tv._connection.close()
                     self.tv._connection = None
                     
+                # Log upload parameters
+                logger.debug(f"Upload parameters: file_type={file_type}, matte=none, portrait_matte=none")
+                logger.info(f"Starting upload of {file_size} bytes...")
+                
                 # Call upload with the new timeouts
+                upload_start_time = time.time()
                 content_id = self.tv.art().upload(
                     data,
                     file_type=file_type,
                     matte='none',  # No frame/mount
                     portrait_matte='none'  # For portrait orientation
                 )
+                upload_end_time = time.time()
+                upload_duration = upload_end_time - upload_start_time
+                
+                logger.info(f"Upload completed in {upload_duration:.1f} seconds")
+                logger.debug(f"Upload speed: {(file_size / upload_duration / 1024 / 1024):.2f} MB/s")
+                
             finally:
                 # Restore the original timeout
                 setattr(self.tv, 'timeout', original_timeout)
+                logger.debug(f"Restored TV timeout to: {original_timeout}s")
+                
             logger.info(f"Uploaded image without matte, content ID: {content_id}")
+            logger.debug(f"Content ID type: {type(content_id)}, value: '{content_id}'")
             
             # Add a significant delay after successful upload to let the TV process it
             delay_seconds = min(15, max(10, int(expected_seconds / 3)))  # At least 10 seconds, or more for larger files
@@ -228,18 +271,51 @@ class TVImageUploader:
             return cast(Optional[str], content_id)
         except Exception as e:
             logger.error(f"Upload failed: {e}")
+            logger.debug(f"Upload error details: {type(e).__name__}: {e}")
+            
+            # Log additional error context if available
+            if hasattr(e, 'response'):
+                logger.debug(f"HTTP response status: {getattr(e.response, 'status_code', 'unknown')}")
+                logger.debug(f"HTTP response text: {getattr(e.response, 'text', 'unknown')}")
+            
             # If we get a timeout, try to check if the image was actually uploaded
             if "timeout" in str(e).lower():
                 logger.info("Timeout during upload. Trying to verify if the upload completed...")
+                logger.debug(f"Upload timeout occurred after expected {expected_seconds:.1f}s (timeout was {dynamic_timeout}s)")
+                
                 try:
                     # Wait a moment for any pending operations
-                    time.sleep(5)
+                    logger.debug("Waiting 10 seconds for any pending TV operations...")
+                    time.sleep(10)  # Increased wait time
+                    
                     # Try to get content list to see if our upload went through
-                    content_list = self.tv.art().get_content_list()
+                    logger.debug("Attempting to retrieve content list to check for successful upload...")
+                    if hasattr(self.tv.art(), 'get_thumbnail_list'):
+                        content_list = self.tv.art().get_thumbnail_list()
+                    elif hasattr(self.tv.art(), 'get_list'):
+                        content_list = self.tv.art().get_list()
+                    elif hasattr(self.tv.art(), 'list'):
+                        content_list = self.tv.art().list()
+                    else:
+                        content_list = []
+                    
                     if content_list and len(content_list) > 0:
+                        logger.info(f"Found {len(content_list)} items in content list after timeout")
                         # Log found content IDs for debugging
                         ids = [item.get("content_id", "unknown") for item in content_list[:5]]
-                        logger.info(f"Found content IDs: {ids}")
+                        logger.info(f"Recent content IDs: {ids}")
+                        
+                        # Check if any of these IDs might be our upload
+                        logger.debug("Checking if any recent content might be our upload...")
+                        for i, item in enumerate(content_list[:3]):
+                            content_id = item.get("content_id", "unknown")
+                            logger.debug(f"Content {i+1}: ID={content_id}, item={item}")
+                        
+                        # If we have recent content, the upload might have succeeded
+                        if len(content_list) > 0:
+                            logger.warning("Upload may have succeeded despite timeout - check TV manually")
+                    else:
+                        logger.warning("No content found in list after timeout - upload likely failed")
                     
                     # If we reach here without error, the connection is working
                     # but our upload may have timed out. Most likely the image is too large.
@@ -247,6 +323,16 @@ class TVImageUploader:
                                   "Consider using a smaller image or increasing the timeout.")
                 except Exception as check_err:
                     logger.debug(f"Content list check failed: {check_err}")
+                    logger.debug(f"Check error details: {type(check_err).__name__}: {check_err}")
+            
+            # Log suggestions based on error type
+            error_str = str(e).lower()
+            if "connection" in error_str:
+                logger.info("Connection error - check TV is on and network is stable")
+            elif "ssl" in error_str or "certificate" in error_str:
+                logger.info("SSL/Certificate error - this is normal for local TV connections")
+            elif "permission" in error_str or "auth" in error_str:
+                logger.info("Permission error - check TV allows connections from this device")
             
             # Re-raise the original exception to trigger retry
             raise
@@ -395,7 +481,14 @@ class TVImageUploader:
         content_list = []
         try:
             logger.info("Fetching content list to verify image availability...")
-            content_list = self.tv.art().get_content_list()
+            if hasattr(self.tv.art(), 'get_thumbnail_list'):
+                content_list = self.tv.art().get_thumbnail_list()
+            elif hasattr(self.tv.art(), 'get_list'):
+                content_list = self.tv.art().get_list()
+            elif hasattr(self.tv.art(), 'list'):
+                content_list = self.tv.art().list()
+            else:
+                content_list = []
             if content_list:
                 logger.info(f"Found {len(content_list)} items in the content list")
                 # Check if our content_id is in the list
@@ -430,25 +523,50 @@ class TVImageUploader:
         # Approach 1: Use the content_id directly with retry
         try:
             logger.info(f"Attempt 1: Setting image ID {content_id} as active (with dedicated retry)...")
+            logger.debug(f"Using primary select method with content_id: '{content_id}'")
+            
             success = self._select_image_with_retry(content_id)
             if success:
+                logger.info("Primary select method reported success")
+                
                 # Double-check by trying to get current displayed image
                 try:
                     if hasattr(self.tv.art(), 'get_current'):
+                        logger.debug("Attempting to verify current displayed image...")
                         current = self.tv.art().get_current()
                         logger.info(f"Current displayed image info: {current}")
+                        
+                        # Try to extract and log the current content ID if available
+                        if isinstance(current, dict) and 'content_id' in current:
+                            current_id = current['content_id']
+                            if current_id == content_id:
+                                logger.info(f"✓ Verification successful: Current image ID matches our upload: {current_id}")
+                            else:
+                                logger.warning(f"⚠ Verification warning: Current image ID ({current_id}) does not match our upload ({content_id})")
+                        else:
+                            logger.debug(f"Current image info format: {type(current)}")
                 except Exception as e:
                     logger.debug(f"Could not verify current image: {e}")
+                    logger.debug(f"Verification error details: {type(e).__name__}: {e}")
+                    
                 return True
         except Exception as e:
             logger.warning(f"Primary method to set image failed: {e}")
+            logger.debug(f"Primary method error details: {type(e).__name__}: {e}")
 
         # Approach 2: Get the content list and find our image
         logger.info("Attempt 2: Trying to find our image in the content list...")
         try:
             # If we already have content list from earlier, use it
             if not content_list:
-                content_list = self.tv.art().get_content_list()
+                if hasattr(self.tv.art(), 'get_thumbnail_list'):
+                    content_list = self.tv.art().get_thumbnail_list()
+                elif hasattr(self.tv.art(), 'get_list'):
+                    content_list = self.tv.art().get_list()
+                elif hasattr(self.tv.art(), 'list'):
+                    content_list = self.tv.art().list()
+                else:
+                    content_list = []
 
             if content_list and len(content_list) > 0:
                 # Log all available content IDs for debugging
@@ -549,3 +667,74 @@ class TVImageUploader:
 
         logger.error("All methods to set active art failed")
         return False
+
+    def debug_tv_state(self) -> None:
+        """Debug function to log detailed TV state information."""
+        logger.info("=== TV DEBUG STATE ===")
+        
+        try:
+            logger.info(f"TV IP: {self.tv_ip}")
+            logger.info(f"TV available: {self.is_tv_available()}")
+            
+            # Log available art methods
+            if hasattr(self.tv, 'art'):
+                art_methods = [method for method in dir(self.tv.art()) if not method.startswith('_')]
+                logger.info(f"Available art methods: {art_methods}")
+            
+            # Try to get device info
+            if hasattr(self.tv, 'rest_device_info'):
+                try:
+                    device_info = self.tv.rest_device_info()
+                    logger.info(f"Device info: {device_info}")
+                except Exception as e:
+                    logger.warning(f"Could not get device info: {e}")
+            
+            # Try to get art mode status
+            try:
+                if hasattr(self.tv.art(), 'get_artmode'):
+                    artmode = self.tv.art().get_artmode()
+                    logger.info(f"Art mode: {artmode}")
+                else:
+                    logger.info("Art mode status not available")
+            except Exception as e:
+                logger.warning(f"Could not get art mode: {e}")
+            
+            # Try to get content list
+            try:
+                content_list = None
+                if hasattr(self.tv.art(), 'get_thumbnail_list'):
+                    logger.debug("Trying get_thumbnail_list method...")
+                    content_list = self.tv.art().get_thumbnail_list()
+                elif hasattr(self.tv.art(), 'get_list'):
+                    logger.debug("Trying get_list method...")
+                    content_list = self.tv.art().get_list()
+                elif hasattr(self.tv.art(), 'list'):
+                    logger.debug("Trying list method...")
+                    content_list = self.tv.art().list()
+                else:
+                    logger.warning("No content list method found")
+                    
+                if content_list:
+                    logger.info(f"Content list length: {len(content_list)}")
+                    for i, item in enumerate(content_list[:5]):
+                        logger.info(f"Content {i+1}: {item}")
+                else:
+                    logger.info("Content list is empty or unavailable")
+            except Exception as e:
+                logger.warning(f"Could not get content list: {e}")
+                logger.debug(f"Content list error details: {type(e).__name__}: {e}")
+            
+            # Try to get current image
+            try:
+                if hasattr(self.tv.art(), 'get_current'):
+                    current = self.tv.art().get_current()
+                    logger.info(f"Current image: {current}")
+                else:
+                    logger.info("Current image info not available")
+            except Exception as e:
+                logger.warning(f"Could not get current image: {e}")
+                
+        except Exception as e:
+            logger.error(f"Debug state check failed: {e}")
+        
+        logger.info("=== END TV DEBUG STATE ===")

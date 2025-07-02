@@ -409,6 +409,9 @@ class DailyArtApp:
                         self.logger.info(f"Image {content_id} successfully set as active art")
                     else:
                         self.logger.warning(f"Failed to set image {content_id} as active through primary methods")
+                        self.logger.info("Running TV debug state check...")
+                        tv_uploader.debug_tv_state()
+                        
                         self.logger.info("Attempting additional retry with fallback method...")
 
                         # Additional retry with longer delay
@@ -418,9 +421,13 @@ class DailyArtApp:
                             self.logger.info(f"Image {content_id} successfully set as active art on second attempt")
                         else:
                             self.logger.warning(f"Failed to set image {content_id} as active art despite retries")
+                            self.logger.info("Running final TV debug state check...")
+                            tv_uploader.debug_tv_state()
                             self.logger.info("Image was uploaded successfully but may not be displayed")
                 except Exception as e:
                     self.logger.warning(f"Error setting active art: {e}")
+                    self.logger.info("Running TV debug state check after error...")
+                    tv_uploader.debug_tv_state()
                     self.logger.info("Image was uploaded successfully but may not be displayed")
                 
                 # Clean up intermediate files
@@ -622,6 +629,11 @@ def main() -> None:
         action="store_true",
         help="Enable debug logging."
     )
+    parser.add_argument(
+        "--verbose", "-v",
+        action="store_true",
+        help="Enable verbose debug logging (even more detailed than --debug)."
+    )
 
     args = parser.parse_args()
     
@@ -637,7 +649,15 @@ def main() -> None:
     create_upload_module()
 
     # Run application
-    log_level = logging.DEBUG if args.debug else logging.INFO
+    if args.verbose:
+        log_level = logging.DEBUG
+        # Also enable urllib3 debug logging for network troubleshooting
+        logging.getLogger("urllib3").setLevel(logging.DEBUG)
+        logging.getLogger("requests").setLevel(logging.DEBUG)
+    elif args.debug:
+        log_level = logging.DEBUG
+    else:
+        log_level = logging.INFO
     app = DailyArtApp(log_level=log_level)
     
     # Determine enhancement preset
