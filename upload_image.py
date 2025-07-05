@@ -11,7 +11,7 @@ import requests
 from typing import Optional, Any, Callable, TypeVar, cast, Type, Tuple
 from dotenv import load_dotenv
 from samsungtvws import SamsungTVWS  # type: ignore # Missing module typings
-from samsungtvws.exceptions import HttpApiError  # type: ignore # Missing module typings
+from samsungtvws.exceptions import HttpApiError  # Missing module typings
 
 
 # Suppress InsecureRequestWarning for local TV connections
@@ -124,7 +124,52 @@ class TVImageUploader:
             return False
         except Exception as e:
             logger.debug(f"TV availability check failed: {e}")
-            return False  # type: ignore # Return type issue flagged by mypy
+            return False
+
+    def check_network_stability(self) -> bool:
+        """Check network stability by performing multiple rapid connection tests.
+        
+        Returns:
+            True if network appears stable, False otherwise.
+        """
+        logger.info("Checking network stability before upload...")
+        stable_connections = 0
+        total_tests = 5
+        
+        for i in range(total_tests):
+            try:
+                # Quick socket test
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(3.0)
+                start_time = time.time()
+                result = sock.connect_ex((self.tv_ip, 8002))
+                response_time = time.time() - start_time
+                sock.close()
+                
+                if result == 0:
+                    stable_connections += 1
+                    logger.debug(f"Stability test {i+1}/{total_tests}: OK ({response_time:.2f}s)")
+                else:
+                    logger.debug(f"Stability test {i+1}/{total_tests}: FAILED")
+                
+                # Small delay between tests
+                time.sleep(0.5)
+                
+            except Exception as e:
+                logger.debug(f"Stability test {i+1}/{total_tests}: ERROR - {e}")
+        
+        stability_ratio = stable_connections / total_tests
+        logger.info(f"Network stability: {stable_connections}/{total_tests} tests passed ({stability_ratio:.0%})")
+        
+        # Consider stable if 80% or more tests pass
+        is_stable = stability_ratio >= 0.8
+        
+        if not is_stable:
+            logger.warning("Network appears unstable - upload may fail or be unreliable")
+        else:
+            logger.info("Network appears stable for upload")
+            
+        return is_stable
             
     @retry(max_attempts=5, delay=10.0)
     def _initialize_tv_connection(self) -> None:
@@ -142,12 +187,12 @@ class TVImageUploader:
         
         # Proceed with actual connection with increased timeouts
         try:
-            logger.debug(f"Creating SamsungTVWS connection with timeout=90")
+            logger.debug(f"Creating SamsungTVWS connection with timeout=180")
             self.tv = SamsungTVWS(
                 self.tv_ip, 
                 port=8002, 
                 name="DailyArtApp",
-                timeout=90  # Increased timeout for all operations
+                timeout=180  # Further increased timeout for all operations (3 minutes)
             )
             logger.info("Successfully created Samsung TV connection object")
             
@@ -198,18 +243,26 @@ class TVImageUploader:
         file_size = os.path.getsize(image_path)
         logger.info(f"Uploading image of size: {file_size/1024/1024:.2f} MB")
         
-        # Calculate expected upload time (rough estimate)
-        # Assume 2 MB/s upload speed (very conservative for large images)
-        expected_seconds = file_size / (2 * 1024 * 1024)
+        # Check network stability before attempting upload
+        if not self.check_network_stability():
+            logger.warning(
+                "Network stability check failed - "
+                "proceeding with upload but expect potential issues"
+            )
+        
+        # Calculate expected upload time (more conservative estimate for Pi/WiFi)
+        # Assume 1 MB/s upload speed (very conservative for Raspberry Pi over WiFi)
+        expected_seconds = file_size / (1 * 1024 * 1024)
         logger.info(f"Expected upload time: approximately {expected_seconds:.1f} seconds")
         
         try:
-            # Set a longer timeout for larger files
-            dynamic_timeout = max(120, int(expected_seconds * 3))  # Triple the expected time
+            # Set a much longer timeout for larger files, especially on Pi
+            # 5x expected time, min 5 minutes
+            dynamic_timeout = max(300, int(expected_seconds * 5))
             logger.info(f"Setting timeout to {dynamic_timeout}s for upload")
             
             # Temporarily update the connection timeout
-            original_timeout = getattr(self.tv, 'timeout', 90)
+            original_timeout = getattr(self.tv, 'timeout', 180)
             logger.debug(f"Original timeout was: {original_timeout}s")
             
             try:
