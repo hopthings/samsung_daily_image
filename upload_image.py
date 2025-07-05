@@ -347,10 +347,28 @@ class TVImageUploader:
                 setattr(self.tv, 'timeout', dynamic_timeout)
                 logger.debug(f"Updated TV timeout to: {dynamic_timeout}s")
                 
-                # Also try to set WebSocket-specific timeouts if available
-                if hasattr(self.tv, '_ws_timeout'):
-                    setattr(self.tv, '_ws_timeout', dynamic_timeout)
-                    logger.debug(f"Updated WebSocket timeout to: {dynamic_timeout}s")
+                # Monkey patch the WebSocket library to use our timeout
+                original_settimeout = None
+                try:
+                    import websocket
+                    import socket
+                    
+                    # Store original functions
+                    original_settimeout = socket.socket.settimeout
+                    
+                    def patched_settimeout(self, timeout):
+                        # Override any timeout less than our dynamic timeout
+                        if timeout is not None and timeout < dynamic_timeout:
+                            logger.debug(f"Overriding socket timeout from {timeout}s to {dynamic_timeout}s")
+                            timeout = dynamic_timeout
+                        return original_settimeout(self, timeout)
+                    
+                    # Apply the patch
+                    socket.socket.settimeout = patched_settimeout
+                    logger.debug(f"Applied WebSocket timeout patch for {dynamic_timeout}s")
+                    
+                except ImportError:
+                    logger.debug("Could not patch WebSocket timeout - websocket module not available")
                 
                 # Force create a new connection with these timeouts
                 if hasattr(self.tv, '_connection'):
@@ -389,6 +407,15 @@ class TVImageUploader:
                 # Restore the original timeout
                 setattr(self.tv, 'timeout', original_timeout)
                 logger.debug(f"Restored TV timeout to: {original_timeout}s")
+                
+                # Restore original WebSocket functions if we patched them
+                try:
+                    import socket
+                    if original_settimeout is not None:
+                        socket.socket.settimeout = original_settimeout
+                        logger.debug("Restored original socket.settimeout function")
+                except:
+                    pass
                 
             logger.info(f"Uploaded image without matte, content ID: {content_id}")
             logger.debug(f"Content ID type: {type(content_id)}, value: '{content_id}'")
