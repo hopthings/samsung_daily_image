@@ -170,6 +170,60 @@ class TVImageUploader:
             logger.info("Network appears stable for upload")
             
         return is_stable
+
+    def _chunked_upload(self, data: bytes, file_type: str, timeout: int) -> Optional[str]:
+        """Upload large files using multiple rapid attempts to work around WebSocket timeouts.
+        
+        Args:
+            data: Image data to upload
+            file_type: File type (JPEG, PNG)
+            timeout: Initial timeout to try
+            
+        Returns:
+            Content ID if successful, None otherwise
+        """
+        logger.info("Attempting multiple rapid upload attempts...")
+        
+        total_size = len(data)
+        logger.info(f"Large file ({total_size/1024/1024:.1f} MB), using rapid retry approach")
+        
+        # Try multiple quick attempts - sometimes the second or third attempt works
+        max_attempts = 5
+        base_delay = 3  # Start with 3 second delays
+        
+        for attempt in range(max_attempts):
+            try:
+                logger.info(f"Upload attempt {attempt + 1}/{max_attempts}...")
+                
+                # Create fresh connection for each attempt
+                if hasattr(self.tv, '_connection'):
+                    try:
+                        if hasattr(self.tv._connection, 'close'):
+                            self.tv._connection.close()
+                        self.tv._connection = None
+                        logger.debug("Closed existing connection for fresh attempt")
+                    except:
+                        pass
+                
+                # Quick upload attempt with standard settings
+                content_id = self.tv.art().upload(
+                    data,
+                    file_type=file_type,
+                    matte='none',
+                    portrait_matte='none'
+                )
+                logger.info(f"Upload succeeded on attempt {attempt + 1}!")
+                return content_id
+                    
+            except Exception as e:
+                logger.warning(f"Upload attempt {attempt + 1} failed: {e}")
+                if attempt < max_attempts - 1:  # Don't sleep on last attempt
+                    sleep_time = base_delay * (attempt + 1)  # Progressive delay
+                    logger.info(f"Waiting {sleep_time}s before next attempt...")
+                    time.sleep(sleep_time)
+        
+        logger.error("All rapid upload attempts failed")
+        return None
             
     @retry(max_attempts=5, delay=10.0)
     def _initialize_tv_connection(self) -> None:
@@ -270,6 +324,11 @@ class TVImageUploader:
                 setattr(self.tv, 'timeout', dynamic_timeout)
                 logger.debug(f"Updated TV timeout to: {dynamic_timeout}s")
                 
+                # Also try to set WebSocket-specific timeouts if available
+                if hasattr(self.tv, '_ws_timeout'):
+                    setattr(self.tv, '_ws_timeout', dynamic_timeout)
+                    logger.debug(f"Updated WebSocket timeout to: {dynamic_timeout}s")
+                
                 # Force create a new connection with these timeouts
                 if hasattr(self.tv, '_connection'):
                     logger.debug("Closing existing TV connection to refresh timeout")
@@ -281,14 +340,22 @@ class TVImageUploader:
                 logger.debug(f"Upload parameters: file_type={file_type}, matte=none, portrait_matte=none")
                 logger.info(f"Starting upload of {file_size} bytes...")
                 
-                # Call upload with the new timeouts
+                # Call upload with chunked approach for large files
                 upload_start_time = time.time()
-                content_id = self.tv.art().upload(
-                    data,
-                    file_type=file_type,
-                    matte='none',  # No frame/mount
-                    portrait_matte='none'  # For portrait orientation
-                )
+                
+                # For large files, try chunked upload approach
+                if file_size > 5 * 1024 * 1024:  # 5MB threshold
+                    logger.info("Large file detected, using chunked upload approach...")
+                    content_id = self._chunked_upload(data, file_type, dynamic_timeout)
+                else:
+                    logger.info("Standard upload for smaller file...")
+                    content_id = self.tv.art().upload(
+                        data,
+                        file_type=file_type,
+                        matte='none',  # No frame/mount
+                        portrait_matte='none'  # For portrait orientation
+                    )
+                
                 upload_end_time = time.time()
                 upload_duration = upload_end_time - upload_start_time
                 
