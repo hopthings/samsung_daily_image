@@ -171,59 +171,82 @@ class TVImageUploader:
             
         return is_stable
 
-    def _chunked_upload(self, data: bytes, file_type: str, timeout: int) -> Optional[str]:
-        """Upload large files using multiple rapid attempts to work around WebSocket timeouts.
+    def _patient_upload(self, data: bytes, file_type: str) -> Optional[str]:
+        """Upload large files using a single patient approach with longer waits.
         
         Args:
             data: Image data to upload
             file_type: File type (JPEG, PNG)
-            timeout: Initial timeout to try
             
         Returns:
             Content ID if successful, None otherwise
         """
-        logger.info("Attempting multiple rapid upload attempts...")
-        
         total_size = len(data)
-        logger.info(f"Large file ({total_size/1024/1024:.1f} MB), using rapid retry approach")
+        logger.info(f"Starting patient upload of {total_size/1024/1024:.1f} MB file...")
         
-        # Try multiple quick attempts - sometimes the second or third attempt works
-        max_attempts = 5
-        base_delay = 3  # Start with 3 second delays
+        # Wait longer before starting upload to let TV settle
+        logger.info("Waiting 10 seconds for TV to settle before upload...")
+        time.sleep(10)
         
-        for attempt in range(max_attempts):
+        # Ensure we have a clean connection
+        if hasattr(self.tv, '_connection'):
             try:
-                logger.info(f"Upload attempt {attempt + 1}/{max_attempts}...")
-                
-                # Create fresh connection for each attempt
-                if hasattr(self.tv, '_connection'):
-                    try:
-                        if hasattr(self.tv._connection, 'close'):
-                            self.tv._connection.close()
-                        self.tv._connection = None
-                        logger.debug("Closed existing connection for fresh attempt")
-                    except:
-                        pass
-                
-                # Quick upload attempt with standard settings
-                content_id = self.tv.art().upload(
-                    data,
-                    file_type=file_type,
-                    matte='none',
-                    portrait_matte='none'
-                )
-                logger.info(f"Upload succeeded on attempt {attempt + 1}!")
-                return content_id
-                    
-            except Exception as e:
-                logger.warning(f"Upload attempt {attempt + 1} failed: {e}")
-                if attempt < max_attempts - 1:  # Don't sleep on last attempt
-                    sleep_time = base_delay * (attempt + 1)  # Progressive delay
-                    logger.info(f"Waiting {sleep_time}s before next attempt...")
-                    time.sleep(sleep_time)
+                if hasattr(self.tv._connection, 'close'):
+                    self.tv._connection.close()
+                self.tv._connection = None
+                logger.debug("Closed existing connection for clean start")
+                # Wait after closing connection
+                time.sleep(5)
+            except:
+                pass
         
-        logger.error("All rapid upload attempts failed")
-        return None
+        try:
+            logger.info("Starting single patient upload attempt...")
+            
+            # Use the standard upload but with more patience
+            content_id = self.tv.art().upload(
+                data,
+                file_type=file_type,
+                matte='none',
+                portrait_matte='none'
+            )
+            logger.info("Patient upload succeeded!")
+            return content_id
+                
+        except Exception as e:
+            logger.error(f"Patient upload failed: {e}")
+            
+            # If it's a timeout, try to check if upload actually succeeded
+            if "timeout" in str(e).lower() or "timed out" in str(e).lower():
+                logger.info("Upload timed out, checking if it might have succeeded...")
+                
+                # Wait for TV to potentially finish processing
+                time.sleep(15)
+                
+                try:
+                    # Check if any new content appeared
+                    if hasattr(self.tv.art(), 'get_thumbnail_list'):
+                        content_list = self.tv.art().get_thumbnail_list()
+                    elif hasattr(self.tv.art(), 'get_list'):
+                        content_list = self.tv.art().get_list()
+                    elif hasattr(self.tv.art(), 'list'):
+                        content_list = self.tv.art().list()
+                    else:
+                        content_list = []
+                    
+                    if content_list and len(content_list) > 0:
+                        # Get the most recent content ID
+                        recent_id = content_list[0].get("content_id")
+                        logger.info(f"Found recent content after timeout: {recent_id}")
+                        logger.info("Upload may have succeeded despite timeout!")
+                        return recent_id
+                    else:
+                        logger.warning("No content found - upload likely failed")
+                        
+                except Exception as check_err:
+                    logger.debug(f"Content check failed: {check_err}")
+            
+            return None
             
     @retry(max_attempts=5, delay=10.0)
     def _initialize_tv_connection(self) -> None:
@@ -343,10 +366,10 @@ class TVImageUploader:
                 # Call upload with chunked approach for large files
                 upload_start_time = time.time()
                 
-                # For large files, try chunked upload approach
+                # For large files, try single patient upload approach
                 if file_size > 5 * 1024 * 1024:  # 5MB threshold
-                    logger.info("Large file detected, using chunked upload approach...")
-                    content_id = self._chunked_upload(data, file_type, dynamic_timeout)
+                    logger.info("Large file detected, using single patient upload approach...")
+                    content_id = self._patient_upload(data, file_type)
                 else:
                     logger.info("Standard upload for smaller file...")
                     content_id = self.tv.art().upload(

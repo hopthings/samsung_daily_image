@@ -243,8 +243,8 @@ class DailyArtApp:
                 file_size = os.path.getsize(image_path)
                 self.logger.info(f"Original image size: {file_size/1024/1024:.2f} MB")
                 
-                # If image is too large (> 10MB), resize it
-                max_upload_size = 10 * 1024 * 1024  # 10MB
+                # If image is too large (> 5MB), resize it for better upload reliability
+                max_upload_size = 5 * 1024 * 1024  # 5MB - more conservative for Pi/WiFi
                 skip_optimized_path: Optional[str] = None
 
                 if file_size > max_upload_size:
@@ -253,10 +253,10 @@ class DailyArtApp:
                     # Load the image
                     img = load_image(image_path)
                     if img:
-                        # Resize to 3840 max dimension without additional compression
+                        # Resize to smaller dimension for better upload reliability
                         optimized_img = resize_image(
                             img, 
-                            max_dimension=3840,  # Max 4K dimension
+                            max_dimension=2560,  # Smaller than 4K for reliability
                             target_filesize_kb=0  # No filesize targeting/compression
                         )
                         
@@ -308,8 +308,8 @@ class DailyArtApp:
                 file_size = os.path.getsize(image_path)
                 self.logger.info(f"Original image size: {file_size/1024/1024:.2f} MB")
                 
-                # If image is too large (> 10MB), resize it
-                max_upload_size = 10 * 1024 * 1024  # 10MB
+                # If image is too large (> 5MB), resize it for better upload reliability
+                max_upload_size = 5 * 1024 * 1024  # 5MB - more conservative for Pi/WiFi
                 upload_optimized_path: Optional[str] = None
 
                 if file_size > max_upload_size:
@@ -318,10 +318,10 @@ class DailyArtApp:
                     # Load the image
                     img = load_image(image_path)
                     if img:
-                        # Resize to 3840 max dimension without additional compression
+                        # Resize to smaller dimension for better upload reliability
                         optimized_img = resize_image(
                             img, 
-                            max_dimension=3840,  # Max 4K dimension
+                            max_dimension=2560,  # Smaller than 4K for reliability
                             target_filesize_kb=0  # No filesize targeting/compression
                         )
                         
