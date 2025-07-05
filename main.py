@@ -342,23 +342,10 @@ class DailyArtApp:
                             image_path = upload_optimized_path
                             self.intermediate_files.append(upload_optimized_path)
                             
-                # Read the image file
-                with open(image_path, 'rb') as f:
-                    image_data = f.read()
-                    
-                # Determine file type
-                is_jpeg = image_path.lower().endswith(('.jpg', '.jpeg'))
-                file_type = 'JPEG' if is_jpeg else 'PNG'
-                
-                # Direct upload with no matte/mount
-                file_size = len(image_data)
-                self.logger.info(f"Uploading {file_size/1024/1024:.2f} MB {file_type} file")
-                content_id = tv_uploader.tv.art().upload(
-                    image_data, 
-                    file_type=file_type,
-                    matte='none',  # No frame/mount
-                    portrait_matte='none'  # For portrait orientation
-                )
+                # Use the improved upload_image method with proper timeout handling
+                file_size = os.path.getsize(image_path)
+                self.logger.info(f"Using improved upload method for {file_size/1024/1024:.2f} MB file...")
+                content_id = tv_uploader.upload_image(image_path)
                 
                 if not content_id:
                     self.logger.error("Failed to upload image to TV")
