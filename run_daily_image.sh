@@ -6,6 +6,43 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 LOG_FILE="$SCRIPT_DIR/daily_run.log"
 
+# Function to rotate logs and keep them manageable
+rotate_logs() {
+    local log_file="$1"
+    local max_size_mb=10  # Maximum size in MB before rotation
+    local keep_days=14    # Keep logs for 2 weeks
+    
+    # Check if log file exists and its size
+    if [ -f "$log_file" ]; then
+        # Get file size in MB
+        file_size=$(du -m "$log_file" | cut -f1)
+        
+        if [ "$file_size" -gt "$max_size_mb" ]; then
+            # Create timestamped backup
+            timestamp=$(date +"%Y%m%d_%H%M%S")
+            backup_file="${log_file}.${timestamp}"
+            
+            # Log the rotation before moving the file
+            echo "===== Log file was ${file_size}MB, rotating at $(date) =====" >> "$log_file"
+            echo "Backup saved as: $(basename "$backup_file")" >> "$log_file"
+            
+            # Move current log to backup
+            mv "$log_file" "$backup_file"
+            
+            # Create new empty log file and log the rotation
+            echo "===== New log started at $(date) (previous log rotated) =====" > "$log_file"
+        fi
+    fi
+    
+    # Clean up old log files (older than keep_days)
+    find "$SCRIPT_DIR" -name "daily_run.log.*" -type f -mtime +$keep_days -delete 2>/dev/null || true
+    find "$SCRIPT_DIR" -name "daily_art.log.*" -type f -mtime +$keep_days -delete 2>/dev/null || true
+}
+
+# Rotate logs if they're getting too large
+rotate_logs "$LOG_FILE"
+rotate_logs "$SCRIPT_DIR/daily_art.log"
+
 # Record start time
 echo "===== Starting Samsung Daily Image run at $(date) =====" >> "$LOG_FILE"
 
