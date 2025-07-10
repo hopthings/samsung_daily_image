@@ -144,7 +144,9 @@ class ImageGenerator:
             f"Use a soft, natural {season} palette with subtle, muted tones—avoid overly vibrant or saturated colours. "
             f"The painting should emulate the look and feel of real paint on canvas, with visible brushstrokes and layered "
             f"texture. Aim for a realistic fine art aesthetic, evoking the softness of traditional oil or acrylic painting. "
-            f"Ensure 16:9 aspect ratio. Create fine art with texture and depth. No text or signatures. "
+            f"Ensure 16:9 aspect ratio. Create fine art with texture and depth. "
+            f"IMPORTANT: Do not include any text, words, letters, dates, signatures, or written elements anywhere in the image. "
+            f"This should be a pure visual artwork without any textual content whatsoever. "
         )
 
         return prompt
