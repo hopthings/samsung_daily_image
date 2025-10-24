@@ -42,9 +42,10 @@ def save_image(image: Image.Image, output_path: str) -> bool:
     try:
         # Ensure the directory exists
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
-        
-        # Save with maximum quality
-        image.save(output_path, quality=100, optimize=False)
+
+        # Save with high quality and optimization for reliable TV upload
+        # Quality 85 provides visually lossless compression for target 3-4 MB files
+        image.save(output_path, quality=85, optimize=True)
         print(f"Image saved to {output_path}")
         return True
     except Exception as e:
