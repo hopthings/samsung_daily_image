@@ -661,7 +661,7 @@ def main() -> None:
     if success:
         print("Daily art successfully generated and enhanced!")
         if not args.skip_upload:
-            print("Image was uploaded and set as active art on TV")
+            print("Image upload to TV was attempted - check logs above for upload status")
     else:
         print("Failed to complete daily art process")
         sys.exit(1)

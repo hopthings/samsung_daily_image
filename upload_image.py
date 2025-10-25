@@ -462,7 +462,7 @@ class TVImageUploader:
                 # Call upload with hard timeout wrapper and retry logic for device conflicts
                 upload_start_time = time.time()
                 content_id = None
-                max_upload_attempts = 3
+                max_upload_attempts = 2  # Reduced from 3 since each attempt takes ~75s (30s timeout + 45s wait)
                 upload_attempt = 0
 
                 # Hard timeout: 30 seconds for files under 5MB, 60 seconds for larger
@@ -500,11 +500,11 @@ class TVImageUploader:
                     except (UploadTimeoutError, DeviceConflictError) as e:
                         if upload_attempt < max_upload_attempts:
                             if isinstance(e, DeviceConflictError):
-                                logger.warning(f"Device conflict detected on attempt {upload_attempt}, waiting 10s before retry...")
-                                time.sleep(10)  # Wait for interfering device to disconnect
+                                logger.warning(f"Device conflict detected on attempt {upload_attempt}, waiting 45s for zombie connection to expire...")
+                                time.sleep(45)  # Wait for TV to expire zombie WebSocket connection (~45s)
                             else:
-                                logger.warning(f"Upload timeout on attempt {upload_attempt}, waiting 5s before retry...")
-                                time.sleep(5)
+                                logger.warning(f"Upload timeout on attempt {upload_attempt}, waiting 45s for zombie connection to expire...")
+                                time.sleep(45)  # Wait for TV to expire zombie WebSocket connection (~45s)
 
                             # Aggressively cleanup WebSocket connections
                             logger.info("Performing aggressive WebSocket cleanup...")
@@ -529,9 +529,9 @@ class TVImageUploader:
                                 except Exception as cleanup_err:
                                     logger.debug(f"Main connection cleanup: {cleanup_err}")
 
-                            # Wait longer for TV to recognize connection close
-                            logger.info("Waiting 10 seconds for TV to clear connections...")
-                            time.sleep(10)
+                            # Wait for TV to expire zombie WebSocket connection naturally (~45s)
+                            logger.info("Waiting 45 seconds for TV to clear zombie WebSocket connections...")
+                            time.sleep(45)
                             logger.debug("Connection cleanup complete, ready for retry")
                         else:
                             # Final attempt failed
