@@ -27,6 +27,7 @@ Thumbs.db
 # Logs
 *.log
 daily_art.log
+pi_logs/
 
 # Local configuration files
 *.plist
