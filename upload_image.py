@@ -8,6 +8,7 @@ import urllib3
 import logging
 import socket
 import requests
+import threading
 from typing import Optional, Any, Callable, TypeVar, cast, Type, Tuple
 from dotenv import load_dotenv
 from samsungtvws import SamsungTVWS  # type: ignore # Missing module typings
@@ -23,6 +24,16 @@ logger = logging.getLogger("DailyArtApp")
 # Type variable for retry decorator
 T = TypeVar('T')
 ExceptionTypes = Tuple[Type[Exception], ...]
+
+
+class UploadTimeoutError(Exception):
+    """Raised when upload exceeds timeout threshold."""
+    pass
+
+
+class DeviceConflictError(Exception):
+    """Raised when another device interferes with upload."""
+    pass
 
 
 # Retry decorator
@@ -73,6 +84,73 @@ def retry(
             
         return wrapper
     return decorator
+
+
+def with_timeout(timeout_seconds: int, func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
+    """Execute a function with a hard timeout.
+
+    Args:
+        timeout_seconds: Maximum seconds to wait
+        func: Function to execute
+        *args: Positional arguments for func
+        **kwargs: Keyword arguments for func
+
+    Returns:
+        Result from func
+
+    Raises:
+        UploadTimeoutError: If function exceeds timeout
+    """
+    result: list[Optional[T]] = [None]
+    exception: list[Optional[Exception]] = [None]
+
+    def target() -> None:
+        try:
+            result[0] = func(*args, **kwargs)
+        except Exception as e:
+            exception[0] = e
+
+    thread = threading.Thread(target=target, daemon=True)
+    thread.start()
+    thread.join(timeout=timeout_seconds)
+
+    if thread.is_alive():
+        # Thread is still running - timeout occurred
+        logger.error(f"Upload exceeded {timeout_seconds}s timeout - killing upload attempt")
+        raise UploadTimeoutError(f"Upload exceeded {timeout_seconds}s timeout")
+
+    if exception[0]:
+        raise exception[0]
+
+    return result[0]  # type: ignore
+
+
+def is_device_conflict_error(error: Exception) -> bool:
+    """Check if an error is due to another device connecting.
+
+    Args:
+        error: Exception to check
+
+    Returns:
+        True if error is due to device conflict
+    """
+    error_str = str(error).lower()
+    error_repr = repr(error).lower()
+
+    # Check for device conflict indicators
+    conflict_indicators = [
+        'clientconnect',
+        'smart device',
+        'device conflict',
+        'another device',
+        'concurrent connection'
+    ]
+
+    for indicator in conflict_indicators:
+        if indicator in error_str or indicator in error_repr:
+            return True
+
+    return False
 
 
 class TVImageUploader:
@@ -381,22 +459,81 @@ class TVImageUploader:
                 logger.debug(f"Upload parameters: file_type={file_type}, matte=none, portrait_matte=none")
                 logger.info(f"Starting upload of {file_size} bytes...")
                 
-                # Call upload with chunked approach for large files
+                # Call upload with hard timeout wrapper and retry logic for device conflicts
                 upload_start_time = time.time()
-                
-                # For large files, try single patient upload approach
-                if file_size > 5 * 1024 * 1024:  # 5MB threshold
-                    logger.info("Large file detected, using single patient upload approach...")
-                    content_id = self._patient_upload(data, file_type)
-                else:
-                    logger.info("Standard upload for smaller file...")
-                    content_id = self.tv.art().upload(
-                        data,
-                        file_type=file_type,
-                        matte='none',  # No frame/mount
-                        portrait_matte='none'  # For portrait orientation
-                    )
-                
+                content_id = None
+                max_upload_attempts = 3
+                upload_attempt = 0
+
+                # Hard timeout: 30 seconds for files under 5MB, 60 seconds for larger
+                hard_timeout = 60 if file_size > 5 * 1024 * 1024 else 30
+                logger.info(f"Using hard timeout of {hard_timeout}s for upload")
+
+                while upload_attempt < max_upload_attempts and content_id is None:
+                    upload_attempt += 1
+                    try:
+                        # For large files, try single patient upload approach
+                        if file_size > 5 * 1024 * 1024:  # 5MB threshold
+                            logger.info(f"Attempt {upload_attempt}/{max_upload_attempts}: Large file upload with {hard_timeout}s timeout...")
+                            content_id = with_timeout(
+                                hard_timeout,
+                                self._patient_upload,
+                                data,
+                                file_type
+                            )
+                        else:
+                            logger.info(f"Attempt {upload_attempt}/{max_upload_attempts}: Standard upload with {hard_timeout}s timeout...")
+                            content_id = with_timeout(
+                                hard_timeout,
+                                self.tv.art().upload,
+                                data,
+                                file_type=file_type,
+                                matte='none',
+                                portrait_matte='none'
+                            )
+
+                        # If we got here, upload succeeded
+                        if content_id:
+                            logger.info(f"Upload succeeded on attempt {upload_attempt}")
+                            break
+
+                    except (UploadTimeoutError, DeviceConflictError) as e:
+                        if upload_attempt < max_upload_attempts:
+                            if isinstance(e, DeviceConflictError):
+                                logger.warning(f"Device conflict detected on attempt {upload_attempt}, waiting 10s before retry...")
+                                time.sleep(10)  # Wait for interfering device to disconnect
+                            else:
+                                logger.warning(f"Upload timeout on attempt {upload_attempt}, waiting 5s before retry...")
+                                time.sleep(5)
+
+                            # Reset connection for next attempt
+                            if hasattr(self.tv, '_connection'):
+                                try:
+                                    if hasattr(self.tv._connection, 'close'):
+                                        self.tv._connection.close()
+                                    self.tv._connection = None
+                                    logger.debug("Reset connection for retry")
+                                except:
+                                    pass
+                        else:
+                            # Final attempt failed
+                            logger.error(f"Upload failed after {max_upload_attempts} attempts")
+                            raise
+
+                    except Exception as e:
+                        # Check if this is a device conflict
+                        if is_device_conflict_error(e):
+                            logger.warning(f"Device conflict detected: {e}")
+                            if upload_attempt < max_upload_attempts:
+                                logger.info(f"Waiting 10s for device to disconnect before retry...")
+                                time.sleep(10)
+                                continue
+                        # Re-raise other exceptions
+                        raise
+
+                if content_id is None:
+                    raise Exception("Upload failed: No content ID returned after all attempts")
+
                 upload_end_time = time.time()
                 upload_duration = upload_end_time - upload_start_time
                 
