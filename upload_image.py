@@ -506,15 +506,33 @@ class TVImageUploader:
                                 logger.warning(f"Upload timeout on attempt {upload_attempt}, waiting 5s before retry...")
                                 time.sleep(5)
 
-                            # Reset connection for next attempt
+                            # Aggressively cleanup WebSocket connections
+                            logger.info("Performing aggressive WebSocket cleanup...")
+                            try:
+                                # Close any art() connections
+                                if hasattr(self.tv, 'art') and callable(self.tv.art):
+                                    art_obj = self.tv.art()
+                                    if hasattr(art_obj, '_connection') and art_obj._connection:
+                                        logger.debug("Closing art() WebSocket connection")
+                                        art_obj._connection.close()
+                                        art_obj._connection = None
+                            except Exception as cleanup_err:
+                                logger.debug(f"Art connection cleanup: {cleanup_err}")
+
+                            # Close main TV connection
                             if hasattr(self.tv, '_connection'):
                                 try:
                                     if hasattr(self.tv._connection, 'close'):
+                                        logger.debug("Closing main TV WebSocket connection")
                                         self.tv._connection.close()
                                     self.tv._connection = None
-                                    logger.debug("Reset connection for retry")
-                                except:
-                                    pass
+                                except Exception as cleanup_err:
+                                    logger.debug(f"Main connection cleanup: {cleanup_err}")
+
+                            # Wait longer for TV to recognize connection close
+                            logger.info("Waiting 10 seconds for TV to clear connections...")
+                            time.sleep(10)
+                            logger.debug("Connection cleanup complete, ready for retry")
                         else:
                             # Final attempt failed
                             logger.error(f"Upload failed after {max_upload_attempts} attempts")
