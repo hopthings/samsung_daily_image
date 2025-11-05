@@ -157,7 +157,10 @@ class DailyArtApp:
             custom_image: Optional[str] = None,
             enhancement_preset: Optional[str] = "upscale-sharp",
             skip_upload: bool = False,
-            upscale: bool = True) -> bool:
+            upscale: bool = True,
+            retry_on_failure: bool = False,
+            max_retries: int = 5,
+            initial_retry_delay: int = 300) -> bool:
         """Run the main application flow.
 
         Args:
@@ -167,6 +170,9 @@ class DailyArtApp:
             enhancement_preset: Preset to use for image enhancement.
             skip_upload: If True, skip uploading to TV.
             upscale: If True, upscale image.
+            retry_on_failure: If True, retry upload on failure with exponential backoff.
+            max_retries: Maximum number of retry attempts (default: 5).
+            initial_retry_delay: Initial delay in seconds before first retry (default: 300 = 5 min).
 
         Returns:
             True if successful, False otherwise.
@@ -237,6 +243,11 @@ class DailyArtApp:
             else:
                 self.logger.info("Upscaling disabled, using enhanced image directly")
 
+            # Retry logic variables
+            retry_attempt = 0
+            retry_delay = initial_retry_delay
+            upload_success = False
+
             # If not uploading, still create optimized version for testing
             if skip_upload:
                 # Check file size first
@@ -277,155 +288,204 @@ class DailyArtApp:
                 # Clean up intermediate files (except the optimized version)
                 self.clean_intermediate_files()
                 return True
-                
-            # Check if TV is powered on via simple ping test before attempting connection
-            try:
-                import socket
-                tv_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                tv_socket.settimeout(5.0)
-                connection_result = tv_socket.connect_ex((self.tv_ip, 8002))
-                tv_socket.close()
-                
-                if connection_result != 0:
-                    self.logger.warning(f"TV at {self.tv_ip} appears to be unreachable or powered off")
-                    self.logger.info(f"Image was generated and saved at: {image_path}")
-                    self.logger.info("Consider manually uploading later when TV is available")
-                    return True
-            except Exception as e:
-                self.logger.warning(f"TV connectivity check failed: {e}")
 
-            # Step 4: Upload image to TV - Simplified direct approach
-            self.logger.info(f"Uploading image to TV at {self.tv_ip}...")
-            try:
-                if tv_uploader is None:
-                    self.logger.error("TV uploader was not initialized")
-                    return False
-                
-                # Direct upload using same approach as the test script
-                self.logger.info("Using simplified direct upload approach...")
-                
-                # Check file size first
-                file_size = os.path.getsize(image_path)
-                self.logger.info(f"Original image size: {file_size/1024/1024:.2f} MB")
-                
-                # If image is too large (> 5MB), resize it for better upload reliability
-                max_upload_size = 5 * 1024 * 1024  # 5MB - more conservative for Pi/WiFi
-                upload_optimized_path: Optional[str] = None
+            # Retry loop for upload attempts
+            while retry_attempt <= max_retries and not upload_success:
+                if retry_attempt > 0:
+                    self.logger.info("="*60)
+                    self.logger.info(f"🔄 RETRY ATTEMPT {retry_attempt}/{max_retries}")
+                    self.logger.info(f"Waiting {retry_delay//60} minutes before retry...")
+                    self.logger.info("="*60)
+                    time.sleep(retry_delay)
+                    # Double the delay for next attempt (exponential backoff)
+                    retry_delay *= 2
 
-                if file_size > max_upload_size:
-                    self.logger.info(f"Image is too large for reliable upload to the TV ({file_size/1024/1024:.2f} MB), resizing to 4K...")
-                    
-                    # Load the image
-                    img = load_image(image_path)
-                    if img:
-                        # Resize to smaller dimension for better upload reliability
-                        optimized_img = resize_image(
-                            img, 
-                            max_dimension=2560,  # Smaller than 4K for reliability
-                            target_filesize_kb=0  # No filesize targeting/compression
-                        )
-                        
-                        # Save the optimized image
-                        base_name = os.path.basename(image_path)
-                        name_root, ext = os.path.splitext(base_name)
-                        optimized_filename = f"{name_root}_optimized{ext}"
-                        upload_optimized_path = os.path.join(self.enhanced_dir, optimized_filename)
+                retry_attempt += 1
 
-                        if save_image(optimized_img, upload_optimized_path):
-                            resized_size = os.path.getsize(upload_optimized_path)
-                            optimized_width, optimized_height = optimized_img.size
-                            self.logger.info(f"Resized image saved to {upload_optimized_path}")
-                            self.logger.info(f"Optimized resolution: {optimized_width}x{optimized_height}")
-                            self.logger.info(f"New size: {resized_size/1024/1024:.2f} MB")
+                # Check if TV is powered on via simple ping test before attempting connection
+                try:
+                    import socket
+                    tv_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    tv_socket.settimeout(5.0)
+                    connection_result = tv_socket.connect_ex((self.tv_ip, 8002))
+                    tv_socket.close()
 
-                            # Use the optimized image and track for cleanup
-                            image_path = upload_optimized_path
-                            self.intermediate_files.append(upload_optimized_path)
+                    if connection_result != 0:
+                        self.logger.warning("="*60)
+                        self.logger.warning(f"⚠ TV at {self.tv_ip} is unreachable or powered off")
+                        self.logger.warning("="*60)
+                        self.logger.info(f"Image was generated and saved at: {image_path}")
+                        if retry_on_failure and retry_attempt <= max_retries:
+                            self.logger.info(f"Will retry in {retry_delay//60} minutes...")
+                            continue  # Continue to next retry
+                        else:
+                            self.logger.info("Consider manually uploading later when TV is available")
+                            # Clean up intermediate files
+                            self.clean_intermediate_files()
+                            return False
+                except Exception as e:
+                    self.logger.warning(f"TV connectivity check failed: {e}")
+
+                # Step 4: Upload image to TV - Simplified direct approach
+                self.logger.info(f"Uploading image to TV at {self.tv_ip}...")
+                try:
+                    if tv_uploader is None:
+                        self.logger.error("TV uploader was not initialized")
+                        if retry_on_failure and retry_attempt <= max_retries:
+                            self.logger.info(f"Will retry in {retry_delay//60} minutes...")
+                            continue
+                        return False
+
+                    # Direct upload using same approach as the test script
+                    self.logger.info("Using simplified direct upload approach...")
+
+                    # Check file size first
+                    file_size = os.path.getsize(image_path)
+                    self.logger.info(f"Original image size: {file_size/1024/1024:.2f} MB")
+
+                    # If image is too large (> 5MB), resize it for better upload reliability
+                    max_upload_size = 5 * 1024 * 1024  # 5MB - more conservative for Pi/WiFi
+                    upload_optimized_path: Optional[str] = None
+
+                    if file_size > max_upload_size:
+                        self.logger.info(f"Image is too large for reliable upload to the TV ({file_size/1024/1024:.2f} MB), resizing to 4K...")
+
+                        # Load the image
+                        img = load_image(image_path)
+                        if img:
+                            # Resize to smaller dimension for better upload reliability
+                            optimized_img = resize_image(
+                                img,
+                                max_dimension=2560,  # Smaller than 4K for reliability
+                                target_filesize_kb=0  # No filesize targeting/compression
+                            )
+
+                            # Save the optimized image
+                            base_name = os.path.basename(image_path)
+                            name_root, ext = os.path.splitext(base_name)
+                            optimized_filename = f"{name_root}_optimized{ext}"
+                            upload_optimized_path = os.path.join(self.enhanced_dir, optimized_filename)
+
+                            if save_image(optimized_img, upload_optimized_path):
+                                resized_size = os.path.getsize(upload_optimized_path)
+                                optimized_width, optimized_height = optimized_img.size
+                                self.logger.info(f"Resized image saved to {upload_optimized_path}")
+                                self.logger.info(f"Optimized resolution: {optimized_width}x{optimized_height}")
+                                self.logger.info(f"New size: {resized_size/1024/1024:.2f} MB")
+
+                                # Use the optimized image and track for cleanup
+                                image_path = upload_optimized_path
+                                self.intermediate_files.append(upload_optimized_path)
                             
-                # Use the improved upload_image method with proper timeout handling
-                file_size = os.path.getsize(image_path)
-                self.logger.info(f"Using improved upload method for {file_size/1024/1024:.2f} MB file...")
-                content_id = tv_uploader.upload_image(image_path)
-                
-                if not content_id:
-                    self.logger.error("Failed to upload image to TV")
-                    return False
-                self.logger.info(f"Image uploaded successfully. ID: {content_id}")
-                
-                # Add a much longer delay between upload and setting active
-                delay_seconds = 15  # Increased to 15 seconds to ensure TV has time to process the upload
-                self.logger.info(f"Waiting {delay_seconds} seconds between upload and setting active...")
-                time.sleep(delay_seconds)
-                
-                # Step 5: Set as active art
-                self.logger.info("Setting image as active art...")
-                
-                # Save the content ID to a file
-                try:
-                    with open("last_uploaded_id.txt", "w") as f:
-                        f.write(f"{content_id}")
-                    self.logger.debug(f"Saved content ID to last_uploaded_id.txt")
-                except Exception as e:
-                    self.logger.debug(f"Could not save content ID to file: {e}")
-                
-                # First remove any matte/mount
-                self.logger.info("Removing matte/frame from image...")
-                try:
-                    # Set matte to 'none' to remove any frame/mount
-                    tv_uploader.tv.art().change_matte(content_id, matte_id='none')
-                    self.logger.info(f"Removed matte for content ID: {content_id}")
-                    
-                    # Wait a moment for the matte change to be processed
-                    time.sleep(2)
-                except Exception as e:
-                    self.logger.warning(f"Could not remove matte: {e}")
-                    # Continue anyway - not critical
-                
-                # Use improved set_active_art method
-                self.logger.info("Using improved set_active_art approach with multiple fallbacks...")
+                    # Use the improved upload_image method with proper timeout handling
+                    file_size = os.path.getsize(image_path)
+                    self.logger.info(f"Using improved upload method for {file_size/1024/1024:.2f} MB file...")
+                    content_id = tv_uploader.upload_image(image_path)
 
-                # Add additional delay before setting active art
-                delay_seconds_before = 10  # Wait longer to ensure TV is ready
-                self.logger.info(f"Waiting {delay_seconds_before} seconds before setting active art...")
-                time.sleep(delay_seconds_before)
+                    if not content_id:
+                        self.logger.error("="*60)
+                        self.logger.error("✗ Failed to upload image to TV")
+                        self.logger.error("="*60)
+                        self.logger.info(f"Image was generated and saved at: {image_path}")
+                        if retry_on_failure and retry_attempt <= max_retries:
+                            self.logger.info(f"Will retry in {retry_delay//60} minutes...")
+                            continue  # Continue to next retry
+                        # Clean up intermediate files
+                        self.clean_intermediate_files()
+                        return False
+                    self.logger.info(f"✓ Image uploaded successfully. Content ID: {content_id}")
 
-                # Now try to set the active art with proper retry and error handling
-                try:
-                    success = tv_uploader.set_active_art(content_id)
+                    # Add a much longer delay between upload and setting active
+                    delay_seconds = 15  # Increased to 15 seconds to ensure TV has time to process the upload
+                    self.logger.info(f"Waiting {delay_seconds} seconds between upload and setting active...")
+                    time.sleep(delay_seconds)
+
+                    # Step 5: Set as active art
+                    self.logger.info("Setting image as active art...")
+
+                    # Save the content ID to a file
+                    try:
+                        with open("last_uploaded_id.txt", "w") as f:
+                            f.write(f"{content_id}")
+                        self.logger.debug(f"Saved content ID to last_uploaded_id.txt")
+                    except Exception as e:
+                        self.logger.debug(f"Could not save content ID to file: {e}")
+
+                    # First remove any matte/mount
+                    self.logger.info("Removing matte/frame from image...")
+                    try:
+                        # Set matte to 'none' to remove any frame/mount
+                        tv_uploader.tv.art().change_matte(content_id, matte_id='none')
+                        self.logger.info(f"Removed matte for content ID: {content_id}")
+
+                        # Wait a moment for the matte change to be processed
+                        time.sleep(2)
+                    except Exception as e:
+                        self.logger.warning(f"Could not remove matte: {e}")
+                        # Continue anyway - not critical
+
+                    # Use improved set_active_art method
+                    self.logger.info("Using improved set_active_art approach with multiple fallbacks...")
+
+                    # Add additional delay before setting active art
+                    delay_seconds_before = 10  # Wait longer to ensure TV is ready
+                    self.logger.info(f"Waiting {delay_seconds_before} seconds before setting active art...")
+                    time.sleep(delay_seconds_before)
+
+                    # Now try to set the active art with proper retry and error handling
+                    set_active_success = False
+                    try:
+                        success = tv_uploader.set_active_art(content_id)
                     if success:
-                        self.logger.info(f"Image {content_id} successfully set as active art")
+                        self.logger.info(f"✓ Image {content_id} successfully set as active art")
+                        set_active_success = True
                     else:
                         self.logger.warning(f"Failed to set image {content_id} as active through primary methods")
                         self.logger.info("Running TV debug state check...")
                         tv_uploader.debug_tv_state()
-                        
+
                         self.logger.info("Attempting additional retry with fallback method...")
 
                         # Additional retry with longer delay
                         time.sleep(15)  # Even longer delay for final retry
                         success = tv_uploader.set_active_art(content_id)
                         if success:
-                            self.logger.info(f"Image {content_id} successfully set as active art on second attempt")
+                            self.logger.info(f"✓ Image {content_id} successfully set as active art on second attempt")
+                            set_active_success = True
                         else:
-                            self.logger.warning(f"Failed to set image {content_id} as active art despite retries")
+                            self.logger.error(f"✗ Failed to set image {content_id} as active art despite retries")
                             self.logger.info("Running final TV debug state check...")
                             tv_uploader.debug_tv_state()
-                            self.logger.info("Image was uploaded successfully but may not be displayed")
+                            self.logger.error("Image was uploaded successfully but is NOT displayed on TV")
                 except Exception as e:
-                    self.logger.warning(f"Error setting active art: {e}")
+                    self.logger.error(f"✗ Error setting active art: {e}")
                     self.logger.info("Running TV debug state check after error...")
                     tv_uploader.debug_tv_state()
-                    self.logger.info("Image was uploaded successfully but may not be displayed")
-                
+                    self.logger.error("Image was uploaded successfully but is NOT displayed on TV")
+
                 # Clean up intermediate files
                 self.clean_intermediate_files()
-                
-                return True
+
+                # Return based on full workflow success
+                if set_active_success:
+                    self.logger.info("="*60)
+                    self.logger.info("✓ SUCCESS: Image uploaded and displayed on TV")
+                    self.logger.info("="*60)
+                    return True
+                else:
+                    self.logger.warning("="*60)
+                    self.logger.warning("⚠ PARTIAL SUCCESS: Image uploaded but NOT displayed")
+                    self.logger.warning(f"Image saved at: {image_path}")
+                    self.logger.warning("You may need to manually select the image on TV")
+                    self.logger.warning("="*60)
+                    return False
             except Exception as e:
-                self.logger.error(f"TV communication failed despite retries: {e}")
+                self.logger.error("="*60)
+                self.logger.error(f"✗ TV communication failed: {e}")
+                self.logger.error("="*60)
                 self.logger.info("Image generation was successful and saved locally")
                 self.logger.info(f"You can manually upload the image: {image_path}")
-                
+
                 # Special handling for common TV errors
                 error_msg = str(e).lower()
                 if "unreachable" in error_msg or "no route to host" in error_msg:
@@ -434,11 +494,11 @@ class DailyArtApp:
                 elif "timeout" in error_msg:
                     self.logger.warning("Connection to TV timed out - network may be unstable")
                     self.logger.info("Check that the TV is connected to the same network as this computer")
-                    
+
                 # Clean up intermediate files even though we had an error
                 self.clean_intermediate_files()
-                # Return true since we did successfully generate the image
-                return True
+                # Return False since we couldn't complete the full workflow
+                return False
 
         except Exception as e:
             self.logger.exception(f"Error in application flow: {e}")
@@ -659,11 +719,20 @@ def main() -> None:
     )
 
     if success:
-        print("Daily art successfully generated and enhanced!")
+        print("\n" + "="*60)
+        print("✓ SUCCESS: Daily art workflow completed!")
+        print("="*60)
         if not args.skip_upload:
-            print("Image upload to TV was attempted - check logs above for upload status")
+            print("Image uploaded and displayed on TV")
+        else:
+            print("Image generated and saved (upload skipped)")
     else:
-        print("Failed to complete daily art process")
+        print("\n" + "="*60)
+        print("✗ FAILED: Daily art workflow incomplete")
+        print("="*60)
+        if not args.skip_upload:
+            print("Check logs above for details")
+            print("Image may be uploaded but not displayed on TV")
         sys.exit(1)
 
 
