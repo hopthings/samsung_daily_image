@@ -77,9 +77,9 @@ class DailyArtApp:
                 if os.path.exists(file_path):
                     # Also look for associated prompt file
                     prompt_file = None
-                    if file_path.endswith('.jpeg') or file_path.endswith('.jpg'):
-                        base_path = file_path[:-5]  # Remove .jpeg or .jpg extension
-                        prompt_file = f"{base_path}_prompt.txt"
+                    # Extract base path correctly for both .jpeg (5 chars) and .jpg (4 chars)
+                    base_path, _ = os.path.splitext(file_path)
+                    prompt_file = f"{base_path}_prompt.txt"
                     
                     # Delete the image file
                     os.remove(file_path)
@@ -232,7 +232,10 @@ class DailyArtApp:
                     
                     # Mark the pre-upscaled image for cleanup
                     # Only if it's a generated or enhanced image, not a user-provided image
-                    if custom_image is None or not os.path.samefile(image_path, custom_image):
+                    if (custom_image is None or
+                        not (os.path.exists(custom_image) and
+                             os.path.exists(image_path) and
+                             os.path.samefile(image_path, custom_image))):
                         self.intermediate_files.append(image_path)
                     
                     # Use the upscaled image for upload
