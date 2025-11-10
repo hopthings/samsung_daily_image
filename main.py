@@ -439,69 +439,69 @@ class DailyArtApp:
                     set_active_success = False
                     try:
                         success = tv_uploader.set_active_art(content_id)
-                    if success:
-                        self.logger.info(f"✓ Image {content_id} successfully set as active art")
-                        set_active_success = True
-                    else:
-                        self.logger.warning(f"Failed to set image {content_id} as active through primary methods")
-                        self.logger.info("Running TV debug state check...")
-                        tv_uploader.debug_tv_state()
-
-                        self.logger.info("Attempting additional retry with fallback method...")
-
-                        # Additional retry with longer delay
-                        time.sleep(15)  # Even longer delay for final retry
-                        success = tv_uploader.set_active_art(content_id)
                         if success:
-                            self.logger.info(f"✓ Image {content_id} successfully set as active art on second attempt")
+                            self.logger.info(f"✓ Image {content_id} successfully set as active art")
                             set_active_success = True
                         else:
-                            self.logger.error(f"✗ Failed to set image {content_id} as active art despite retries")
-                            self.logger.info("Running final TV debug state check...")
+                            self.logger.warning(f"Failed to set image {content_id} as active through primary methods")
+                            self.logger.info("Running TV debug state check...")
                             tv_uploader.debug_tv_state()
-                            self.logger.error("Image was uploaded successfully but is NOT displayed on TV")
+
+                            self.logger.info("Attempting additional retry with fallback method...")
+
+                            # Additional retry with longer delay
+                            time.sleep(15)  # Even longer delay for final retry
+                            success = tv_uploader.set_active_art(content_id)
+                            if success:
+                                self.logger.info(f"✓ Image {content_id} successfully set as active art on second attempt")
+                                set_active_success = True
+                            else:
+                                self.logger.error(f"✗ Failed to set image {content_id} as active art despite retries")
+                                self.logger.info("Running final TV debug state check...")
+                                tv_uploader.debug_tv_state()
+                                self.logger.error("Image was uploaded successfully but is NOT displayed on TV")
+                    except Exception as e:
+                        self.logger.error(f"✗ Error setting active art: {e}")
+                        self.logger.info("Running TV debug state check after error...")
+                        tv_uploader.debug_tv_state()
+                        self.logger.error("Image was uploaded successfully but is NOT displayed on TV")
+
+                    # Clean up intermediate files
+                    self.clean_intermediate_files()
+
+                    # Return based on full workflow success
+                    if set_active_success:
+                        self.logger.info("="*60)
+                        self.logger.info("✓ SUCCESS: Image uploaded and displayed on TV")
+                        self.logger.info("="*60)
+                        return True
+                    else:
+                        self.logger.warning("="*60)
+                        self.logger.warning("⚠ PARTIAL SUCCESS: Image uploaded but NOT displayed")
+                        self.logger.warning(f"Image saved at: {image_path}")
+                        self.logger.warning("You may need to manually select the image on TV")
+                        self.logger.warning("="*60)
+                        return False
                 except Exception as e:
-                    self.logger.error(f"✗ Error setting active art: {e}")
-                    self.logger.info("Running TV debug state check after error...")
-                    tv_uploader.debug_tv_state()
-                    self.logger.error("Image was uploaded successfully but is NOT displayed on TV")
+                    self.logger.error("="*60)
+                    self.logger.error(f"✗ TV communication failed: {e}")
+                    self.logger.error("="*60)
+                    self.logger.info("Image generation was successful and saved locally")
+                    self.logger.info(f"You can manually upload the image: {image_path}")
 
-                # Clean up intermediate files
-                self.clean_intermediate_files()
+                    # Special handling for common TV errors
+                    error_msg = str(e).lower()
+                    if "unreachable" in error_msg or "no route to host" in error_msg:
+                        self.logger.warning("TV appears to be powered off or in deep sleep mode")
+                        self.logger.info("Try running this script when the TV is on, or enable Wake-on-LAN")
+                    elif "timeout" in error_msg:
+                        self.logger.warning("Connection to TV timed out - network may be unstable")
+                        self.logger.info("Check that the TV is connected to the same network as this computer")
 
-                # Return based on full workflow success
-                if set_active_success:
-                    self.logger.info("="*60)
-                    self.logger.info("✓ SUCCESS: Image uploaded and displayed on TV")
-                    self.logger.info("="*60)
-                    return True
-                else:
-                    self.logger.warning("="*60)
-                    self.logger.warning("⚠ PARTIAL SUCCESS: Image uploaded but NOT displayed")
-                    self.logger.warning(f"Image saved at: {image_path}")
-                    self.logger.warning("You may need to manually select the image on TV")
-                    self.logger.warning("="*60)
+                    # Clean up intermediate files even though we had an error
+                    self.clean_intermediate_files()
+                    # Return False since we couldn't complete the full workflow
                     return False
-            except Exception as e:
-                self.logger.error("="*60)
-                self.logger.error(f"✗ TV communication failed: {e}")
-                self.logger.error("="*60)
-                self.logger.info("Image generation was successful and saved locally")
-                self.logger.info(f"You can manually upload the image: {image_path}")
-
-                # Special handling for common TV errors
-                error_msg = str(e).lower()
-                if "unreachable" in error_msg or "no route to host" in error_msg:
-                    self.logger.warning("TV appears to be powered off or in deep sleep mode")
-                    self.logger.info("Try running this script when the TV is on, or enable Wake-on-LAN")
-                elif "timeout" in error_msg:
-                    self.logger.warning("Connection to TV timed out - network may be unstable")
-                    self.logger.info("Check that the TV is connected to the same network as this computer")
-
-                # Clean up intermediate files even though we had an error
-                self.clean_intermediate_files()
-                # Return False since we couldn't complete the full workflow
-                return False
 
         except Exception as e:
             self.logger.exception(f"Error in application flow: {e}")
