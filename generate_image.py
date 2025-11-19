@@ -10,6 +10,7 @@ from typing import Optional, Dict, List
 from dotenv import load_dotenv
 from datetime import datetime
 import random
+from weather_service import WeatherService
 
 
 class ImageGenerator:
@@ -25,6 +26,7 @@ class ImageGenerator:
 
         self.image_dir = "generated_images"
         os.makedirs(self.image_dir, exist_ok=True)
+        self.weather_service = WeatherService()
 
     def _get_art_styles(self) -> List[str]:
         """Get art styles that work with the impasto/palette knife style.
@@ -120,6 +122,34 @@ class ImageGenerator:
         weekday = date_info["weekday"]
         formatted_date = date_info["formatted_date"]
 
+        # Get Weather
+        weather_location = os.getenv("WEATHER_LOCATION")
+        lat = None
+        lon = None
+
+        if weather_location:
+            try:
+                lat_str, lon_str = weather_location.split(",")
+                lat = float(lat_str.strip())
+                lon = float(lon_str.strip())
+            except ValueError:
+                print(f"Error parsing WEATHER_LOCATION: {weather_location}")
+
+        weather_modifier = ""
+        weather_desc = "unknown weather"
+        
+        if lat is not None and lon is not None:
+            print(f"Fetching weather for {lat}, {lon}...")
+            weather = self.weather_service.get_current_weather(lat, lon)
+            if weather:
+                weather_desc = weather['condition']
+                weather_modifier = self.weather_service.get_weather_prompt_modifier(weather)
+                print(f"Current weather: {weather_desc} ({weather['temperature']})")
+            else:
+                print("Could not fetch weather data.")
+        else:
+            print("WEATHER_LOCATION not set in .env (format: lat,lon), skipping weather.")
+
         # Choose a random art style
         style = random.choice(art_styles)
 
@@ -137,7 +167,14 @@ class ImageGenerator:
         # Create detailed context-aware prompt for DALL-E
         prompt = (
             f"Create a high-quality {style} art piece for {weekday}, "
-            f"{formatted_date} in {season}. Choose a subject relevant to "
+            f"{formatted_date} in {season}. "
+        )
+        
+        if weather_modifier:
+            prompt += f"The scene should reflect the current weather: {weather_desc}. Incorporate {weather_modifier}. "
+            
+        prompt += (
+            f"Choose a subject relevant to "
             f"this day and time of year. Focus on a single seasonal subject that evokes this time of year. "
             f"This could be something like {subject_examples[season]}, "
             f"or something more unexpected but still seasonally appropriate. Feel free to interpret the theme creatively based on the time of year. "
