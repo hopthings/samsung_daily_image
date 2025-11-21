@@ -59,13 +59,31 @@ class ImageGenerator:
             start_month=12, start_day=10,
             end_month=12, end_day=26,
             subjects=[
-                "festive christmas market scene",
-                "cozy living room with decorated christmas tree",
-                "snowy village with christmas lights",
-                "elegant christmas wreath on a rustic door",
-                "vintage christmas ornaments",
-                "winter scene with holly and ivy",
-                "festive holiday bouquet with poinsettias"
+                "abstract palette knife Christmas tree in rich green tones",
+                "abstract palette knife Christmas tree with minimal ornaments",
+                "stylised triangular Christmas tree made from layered impasto strokes",
+                "Christmas tree formed from geometric palette-knife blocks",
+                "Christmas tree built from overlapping textured paint shapes",
+                "single red Christmas tree on a muted green textured background",
+                "multicoloured abstract Christmas tree with thick palette-knife paint",
+                "Christmas tree silhouette emerging from a heavily textured background",
+                "Christmas tree made of sweeping palette-knife arcs",
+                "Christmas tree with falling paint-flake snow in impasto style",
+                "close-up holly branch with glossy red berries in thick impasto paint",
+                "single holly leaf cluster with strong textured brushstrokes",
+                "minimal winter composition featuring a holly sprig and berries",
+                "ivy branch in winter tones painted with heavy texture",
+                "winter berries arranged in a simple, abstract still-life",
+                "single ornament resting on snowy textured ground in impasto style",
+                "hanging ornaments suggested as floating abstract shapes",
+                "abstract baubles surrounding a soft Christmas tree silhouette",
+                "single bright star motif above a faint textured tree shape",
+                "snowy evergreen tree painted in simple bold shapes",
+                "frost-textured winter landscape with a single tree focal point",
+                "snow-covered Christmas tree rendered in blocky palette-knife strokes",
+                "winter night sky with a single glowing star in textured paint",
+                "red, green, and white colour-field composition suggesting a tree form",
+                "circular abstract holly wreath shape created with thick palette-knife strokes"
             ],
             prompt_modifier="It is the festive holiday season. Capture the magic and warmth of Christmas.",
             palette="festive palette with rich reds, greens, golds, and snowy whites"
@@ -75,10 +93,16 @@ class ImageGenerator:
             start_month=12, start_day=31,
             end_month=1, end_day=1,
             subjects=[
-                "fireworks in the night sky",
-                "elegant champagne toast setup",
-                "festive party streamers and confetti",
-                "clocks striking midnight"
+                "abstract gold and silver brushstrokes suggesting fireworks in the night sky",
+                "minimalist city skyline with abstract fireworks above",
+                "single champagne glass rendered in thick impasto strokes",
+                "pair of champagne flutes with soft reflections in textured paint",
+                "abstract clock face approaching midnight without any numbers or text",
+                "bokeh-style circles of light in layered palette-knife texture",
+                "gold and deep blue colour-field composition suggesting a celebration",
+                "silver confetti as scattered textured paint shapes on a dark background",
+                "abstract starbursts of light in midnight blue and gold",
+                "minimalist horizon with distant fireworks suggested through colour only"
             ],
             prompt_modifier="It is New Year's. Capture the excitement and hope of a new beginning.",
             palette="elegant palette with golds, silvers, blacks, and deep blues"
@@ -88,11 +112,16 @@ class ImageGenerator:
             start_month=10, start_day=25,
             end_month=10, end_day=31,
             subjects=[
-                "spooky haunted house silhouette",
-                "carved pumpkins on a porch",
-                "misty forest with twisted trees",
-                "autumn harvest with pumpkins and corn",
-                "vintage halloween decorations"
+                "single carved pumpkin with dramatic side lighting in thick textured paint",
+                "row of simple pumpkins against a dark, abstract background",
+                "silhouette of a twisted tree against a moody twilight sky",
+                "abstract moonlit sky with the suggestion of flying bats in bold brushstrokes",
+                "crow perched on a branch painted in expressive impasto strokes",
+                "cluster of autumn leaves in deep oranges and purples on a dark ground",
+                "misty path through a forest suggested with soft textured strokes",
+                "simple haunted house silhouette with softly glowing windows against the night sky",
+                "still-life of small pumpkins and gourds in dramatic, textured lighting",
+                "abstract swirl of autumn colours hinting at a Halloween night atmosphere"
             ],
             prompt_modifier="It is Halloween season. Create a mysterious and slightly spooky atmosphere.",
             palette="autumnal palette with deep oranges, blacks, purples, and shadowy greys"
@@ -102,13 +131,38 @@ class ImageGenerator:
             start_month=7, start_day=4,
             end_month=7, end_day=4,
             subjects=[
-                "fireworks over a lake",
-                "summer picnic scene",
-                "patriotic bunting on a porch",
-                "summer evening celebration"
+                "abstract red, white, and blue brushstrokes suggesting distant fireworks",
+                "simple star motif in textured red, white, and blue paint",
+                "calm summer lake at sunset with soft impasto reflections",
+                "single sailboat silhouette on a warm evening horizon",
+                "rustic wooden plank texture with subtle Americana colours",
+                "soft abstract sky with gentle bursts of colour suggesting fireworks",
+                "minimalist landscape with wide blue sky and warm golden field",
+                "close-up of a single colour-block pattern inspired by red, white, and blue",
+                "abstract celebratory confetti pattern in red, white, and blue tones",
+                "glowing summer twilight gradient rendered in layered palette-knife strokes"
             ],
             prompt_modifier="It is Independence Day. Capture the celebratory spirit of summer.",
             palette="vibrant summer palette with touches of red, white, and blue"
+        ),
+        HolidayConfig(
+            name="Valentine's Day",
+            start_month=2, start_day=14,
+            end_month=2, end_day=14,
+            subjects=[
+                "single abstract heart shape formed with bold palette-knife strokes",
+                "pair of overlapping hearts in thick impasto texture",
+                "soft pink and red colour-field composition suggesting a romantic theme",
+                "single rose rendered in expressive palette-knife style",
+                "minimalist still-life of two roses with heavy textured paint",
+                "abstract swirling red and pink strokes suggesting affection",
+                "simple silhouette of two entwined stems painted with thick texture",
+                "romantic candle glow suggested through warm textured brushstrokes",
+                "soft abstract gradient in warm pinks and reds with visible texture",
+                "delicate heart motif emerging from layered impasto paint"
+            ],
+            prompt_modifier="It is Valentine's season. Capture the mood of warmth, romance, and softness.",
+            palette="romantic palette with warm reds, soft pinks, creams, and gentle highlights"
         )
     ]
 
