@@ -6,15 +6,111 @@ import sys
 import argparse
 import requests
 import json
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, NamedTuple
 from dotenv import load_dotenv
 from datetime import datetime
 import random
 from weather_service import WeatherService
 
 
+class HolidayConfig(NamedTuple):
+    """Configuration for a holiday season."""
+    name: str
+    start_month: int
+    start_day: int
+    end_month: int
+    end_day: int
+    subjects: List[str]
+    prompt_modifier: str
+    palette: Optional[str] = None
+
+    def is_active(self, date: datetime) -> bool:
+        """Check if the given date falls within this holiday season."""
+        # Handle year wrap-around (e.g. Dec 30 to Jan 2)
+        if self.start_month > self.end_month:
+            # It wraps around the year
+            if date.month > self.start_month:
+                return date.day >= self.start_day
+            elif date.month == self.start_month:
+                return date.day >= self.start_day
+            elif date.month < self.end_month:
+                return True
+            elif date.month == self.end_month:
+                return date.day <= self.end_day
+            return False
+        else:
+            # Standard range within same year
+            if date.month < self.start_month or date.month > self.end_month:
+                return False
+            if date.month == self.start_month and date.day < self.start_day:
+                return False
+            if date.month == self.end_month and date.day > self.end_day:
+                return False
+            return True
+
+
 class ImageGenerator:
     """Class to handle image generation with OpenAI's API."""
+
+    # Define supported holidays
+    HOLIDAYS = [
+        HolidayConfig(
+            name="Christmas",
+            start_month=12, start_day=10,
+            end_month=12, end_day=26,
+            subjects=[
+                "festive christmas market scene",
+                "cozy living room with decorated christmas tree",
+                "snowy village with christmas lights",
+                "elegant christmas wreath on a rustic door",
+                "vintage christmas ornaments",
+                "winter scene with holly and ivy",
+                "festive holiday bouquet with poinsettias"
+            ],
+            prompt_modifier="It is the festive holiday season. Capture the magic and warmth of Christmas.",
+            palette="festive palette with rich reds, greens, golds, and snowy whites"
+        ),
+        HolidayConfig(
+            name="New Year",
+            start_month=12, start_day=31,
+            end_month=1, end_day=1,
+            subjects=[
+                "fireworks in the night sky",
+                "elegant champagne toast setup",
+                "festive party streamers and confetti",
+                "clocks striking midnight"
+            ],
+            prompt_modifier="It is New Year's. Capture the excitement and hope of a new beginning.",
+            palette="elegant palette with golds, silvers, blacks, and deep blues"
+        ),
+        HolidayConfig(
+            name="Halloween",
+            start_month=10, start_day=25,
+            end_month=10, end_day=31,
+            subjects=[
+                "spooky haunted house silhouette",
+                "carved pumpkins on a porch",
+                "misty forest with twisted trees",
+                "autumn harvest with pumpkins and corn",
+                "vintage halloween decorations"
+            ],
+            prompt_modifier="It is Halloween season. Create a mysterious and slightly spooky atmosphere.",
+            palette="autumnal palette with deep oranges, blacks, purples, and shadowy greys"
+        ),
+        HolidayConfig(
+            name="July 4th",
+            start_month=7, start_day=4,
+            end_month=7, end_day=4,
+            subjects=[
+                "fireworks over a lake",
+                "summer picnic scene",
+                "patriotic bunting on a porch",
+                "summer evening celebration"
+            ],
+            prompt_modifier="It is Independence Day. Capture the celebratory spirit of summer.",
+            palette="vibrant summer palette with touches of red, white, and blue"
+        )
+    ]
 
     def __init__(self) -> None:
         """Initialize the generator with API key from environment."""
@@ -48,7 +144,7 @@ class ImageGenerator:
         ]
         return art_styles
 
-    def _get_current_season_info(self) -> Dict[str, str]:
+    def _get_current_season_info(self) -> Dict:
         """Get information about the current date and season.
 
         Returns:
@@ -99,6 +195,13 @@ class ImageGenerator:
         month_name = month_names[current_month - 1]
         formatted_date = f"{current_day}{suffix} of {month_name}"
 
+        # Check for active holiday
+        active_holiday = None
+        for holiday in self.HOLIDAYS:
+            if holiday.is_active(current_date):
+                active_holiday = holiday
+                break
+
         # Format date information
         date_info = {
             "day": str(current_day),
@@ -107,7 +210,8 @@ class ImageGenerator:
             "month_name": month_names[current_month - 1],
             "weekday": weekday,
             "formatted_date": formatted_date,
-            "season": season
+            "season": season,
+            "active_holiday": active_holiday
         }
         return date_info
 
@@ -121,6 +225,7 @@ class ImageGenerator:
         season = date_info["season"]
         weekday = date_info["weekday"]
         formatted_date = date_info["formatted_date"]
+        active_holiday: Optional[HolidayConfig] = date_info.get("active_holiday")
 
         # Get Weather
         weather_location = os.getenv("WEATHER_LOCATION")
@@ -161,9 +266,6 @@ class ImageGenerator:
             "Autumn": "autumn foliage, harvest scenes, fall colors, fall flowers, autumn leaves, autumnal bouquets, autumn flowers in a vase" # options: fields of asters or goldenrod
         }
 
-        # Optional: Special date check could be implemented here
-        # For example, holidays or special events
-        # This would be a good place to add holiday-specific themes
         # Create detailed context-aware prompt for DALL-E
         prompt = (
             f"Create a high-quality {style} art piece for {weekday}, "
@@ -173,12 +275,23 @@ class ImageGenerator:
         if weather_modifier:
             prompt += f"The scene should reflect the current weather: {weather_desc}. Incorporate {weather_modifier}. "
             
+        if active_holiday:
+            prompt += f"{active_holiday.prompt_modifier} "
+            subject = random.choice(active_holiday.subjects)
+            prompt += f"The subject should be a {subject}. "
+            
+            if active_holiday.palette:
+                prompt += f"Use a {active_holiday.palette}. "
+        else:
+            prompt += (
+                f"Choose a subject relevant to "
+                f"this day and time of year. Focus on a single seasonal subject that evokes this time of year. "
+                f"This could be something like {subject_examples[season]}, "
+                f"or something more unexpected but still seasonally appropriate. Feel free to interpret the theme creatively based on the time of year. "
+                f"Use a soft, natural {season} palette with subtle, muted tones—avoid overly vibrant or saturated colours. "
+            )
+
         prompt += (
-            f"Choose a subject relevant to "
-            f"this day and time of year. Focus on a single seasonal subject that evokes this time of year. "
-            f"This could be something like {subject_examples[season]}, "
-            f"or something more unexpected but still seasonally appropriate. Feel free to interpret the theme creatively based on the time of year. "
-            f"Use a soft, natural {season} palette with subtle, muted tones—avoid overly vibrant or saturated colours. "
             f"The painting should emulate the look and feel of real paint on canvas, with visible brushstrokes and layered "
             f"texture. Aim for a realistic fine art aesthetic, evoking the softness of traditional oil or acrylic painting. "
             f"Ensure 16:9 aspect ratio. Create fine art with texture and depth. "
