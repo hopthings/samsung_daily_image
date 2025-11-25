@@ -20,8 +20,8 @@ from dotenv import load_dotenv
 
 # Import local modules
 from generate_image import ImageGenerator
-from test_image_enhancement import load_image, save_image, apply_enhancement, resize_image
-from test_enhancement_presets import get_preset_params
+from image_enhancement import load_image, save_image, apply_enhancement, resize_image
+from enhancement_presets import get_preset_params
 from upscale_image import upscale_image
 # TVImageUploader will be imported after creating the module
 
