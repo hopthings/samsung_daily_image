@@ -1,12 +1,18 @@
+"""Weather service for fetching current weather conditions from Open-Meteo API."""
+
+import logging
 import requests
-from typing import Dict, Optional, Tuple
+from typing import Dict, Optional
+
+logger = logging.getLogger(__name__)
+
 
 class WeatherService:
     """Service to fetch weather data from Open-Meteo."""
-    
+
     # WMO Weather interpretation codes (WW)
     # https://open-meteo.com/en/docs
-    WEATHER_CODES = {
+    WEATHER_CODES: Dict[int, str] = {
         0: "Clear sky",
         1: "Mainly clear",
         2: "Partly cloudy",
@@ -37,8 +43,9 @@ class WeatherService:
         99: "Thunderstorm with heavy hail",
     }
 
-    def __init__(self):
-        self.base_url = "https://api.open-meteo.com/v1/forecast"
+    def __init__(self) -> None:
+        """Initialize the weather service."""
+        self.base_url: str = "https://api.open-meteo.com/v1/forecast"
 
     def get_current_weather(self, lat: float, lon: float) -> Optional[Dict[str, str]]:
         """
@@ -76,10 +83,10 @@ class WeatherService:
             }
             
         except Exception as e:
-            print(f"Error fetching weather: {e}")
+            logger.warning(f"Error fetching weather: {e}")
             return None
 
-    def get_weather_prompt_modifier(self, weather_data: Dict) -> str:
+    def get_weather_prompt_modifier(self, weather_data: Dict[str, str]) -> str:
         """
         Get a string modifier for the art prompt based on weather.
         """

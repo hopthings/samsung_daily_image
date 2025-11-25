@@ -125,7 +125,7 @@ def get_preset_params() -> Dict[str, Dict[str, Any]]:
 def process_with_presets(
     input_path: str,
     output_dir: str,
-    selected_presets: List[str] = None
+    selected_presets: Optional[List[str]] = None
 ) -> List[str]:
     """Process an image with multiple presets and return file paths.
     

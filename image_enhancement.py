@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Test script for image enhancement experimentation."""
+"""Image enhancement module for processing and optimizing artwork."""
 
 import os
 import sys
 import argparse
-from typing import Tuple, Optional, Dict, Any
+from typing import Tuple, Optional, Dict, Any, List
 from PIL import Image, ImageEnhance, ImageFilter
 import time
 
@@ -276,9 +276,9 @@ def process_image(
 
 def create_comparison_grid(
     original_path: str,
-    enhanced_paths: list,
+    enhanced_paths: List[str],
     output_path: str,
-    labels: Optional[list] = None
+    labels: Optional[List[str]] = None
 ) -> bool:
     """Create a grid image comparing original and enhanced versions.
     
