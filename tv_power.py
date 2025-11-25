@@ -35,6 +35,7 @@ import urllib3
 from typing import Optional, Tuple, Any
 from pathlib import Path
 from dotenv import load_dotenv
+from tv_utils import websocket_timeout_patch
 
 # Suppress InsecureRequestWarning for local TV connections
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)

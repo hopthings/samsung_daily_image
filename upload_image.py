@@ -13,6 +13,8 @@ from typing import Optional, Any, Callable, TypeVar, cast, Type, Tuple
 from dotenv import load_dotenv
 from samsungtvws import SamsungTVWS  # type: ignore # Missing module typings
 from samsungtvws.exceptions import HttpApiError  # Missing module typings
+# TODO: Refactor inline WebSocket timeout patching to use tv_utils.websocket_timeout_patch
+# from tv_utils import websocket_timeout_patch, calculate_upload_timeout
 
 
 # Suppress InsecureRequestWarning for local TV connections
