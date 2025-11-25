@@ -80,9 +80,10 @@ def retry(
                     time.sleep(current_delay)
                     current_delay *= backoff_factor
             
-            # This should never be reached, but mypy requires a return statement
-            assert False, "This code should be unreachable"
-            return cast(T, None)  # Make mypy happy
+            # This should never be reached due to the for loop logic above
+            raise RuntimeError(
+                f"Retry decorator failed unexpectedly after {max_attempts} attempts"
+            )
             
         return wrapper
     return decorator

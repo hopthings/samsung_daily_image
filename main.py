@@ -266,15 +266,15 @@ class DailyArtApp:
                 skip_optimized_path: Optional[str] = None
 
                 if file_size > max_upload_size:
-                    self.logger.info(f"Image is too large for reliable upload to the TV ({file_size/1024/1024:.2f} MB), creating 4K optimized version...")
-                    
+                    self.logger.info(f"Image is too large for reliable upload to the TV ({file_size/1024/1024:.2f} MB), creating optimized version (2560px max)...")
+
                     # Load the image
                     img = load_image(image_path)
                     if img:
-                        # Resize to smaller dimension for better upload reliability
+                        # Resize to 2560px max dimension for better upload reliability
                         optimized_img = resize_image(
-                            img, 
-                            max_dimension=2560,  # Smaller than 4K for reliability
+                            img,
+                            max_dimension=2560,  # 2560px max for reliable WiFi upload
                             target_filesize_kb=0  # No filesize targeting/compression
                         )
                         
@@ -355,15 +355,15 @@ class DailyArtApp:
                     upload_optimized_path: Optional[str] = None
 
                     if file_size > max_upload_size:
-                        self.logger.info(f"Image is too large for reliable upload to the TV ({file_size/1024/1024:.2f} MB), resizing to 4K...")
+                        self.logger.info(f"Image is too large for reliable upload to the TV ({file_size/1024/1024:.2f} MB), resizing to 2560px...")
 
                         # Load the image
                         img = load_image(image_path)
                         if img:
-                            # Resize to smaller dimension for better upload reliability
+                            # Resize to 2560px max dimension for better upload reliability
                             optimized_img = resize_image(
                                 img,
-                                max_dimension=2560,  # Smaller than 4K for reliability
+                                max_dimension=2560,  # 2560px max for reliable WiFi upload
                                 target_filesize_kb=0  # No filesize targeting/compression
                             )
 

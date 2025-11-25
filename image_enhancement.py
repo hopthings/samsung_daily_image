@@ -105,7 +105,7 @@ def resize_image(
             new_height = int(new_height * scale_factor)
     
     # Apply the resize
-    resized_image = image.resize((new_width, new_height), Image.LANCZOS)
+    resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
     
     # Optionally target a file size (if specified)
     if target_filesize_kb > 0:
@@ -182,7 +182,7 @@ def apply_enhancement(
         new_width = int(result.width * upscale_factor)
         new_height = int(result.height * upscale_factor)
         # Use LANCZOS resampling for best quality
-        result = result.resize((new_width, new_height), Image.LANCZOS)
+        result = result.resize((new_width, new_height), Image.Resampling.LANCZOS)
     
     # Apply brightness adjustment
     if brightness != 1.0:
@@ -332,8 +332,8 @@ def create_comparison_grid(
                 height = h
         
         thumbnail_size = (width, height)
-        original_thumb = original.resize(thumbnail_size, Image.LANCZOS)
-        enhanced_thumbs = [img.resize(thumbnail_size, Image.LANCZOS) for img in enhanced_images]
+        original_thumb = original.resize(thumbnail_size, Image.Resampling.LANCZOS)
+        enhanced_thumbs = [img.resize(thumbnail_size, Image.Resampling.LANCZOS) for img in enhanced_images]
         
         # Create blank canvas for grid
         grid_width = cols * width
