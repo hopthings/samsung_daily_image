@@ -162,16 +162,18 @@ class TVImageUploader:
         Args:
             tv_ip: The IP address of the Samsung TV. If None, it will
                   be loaded from the SAMSUNG_TV_IP environment variable.
+
+        Raises:
+            ValueError: If SAMSUNG_TV_IP is not found in environment.
         """
         if not tv_ip:
             load_dotenv()
             env_ip = os.getenv("SAMSUNG_TV_IP")
             if not env_ip:
-                logger.error("Error: SAMSUNG_TV_IP not found in .env file")
-                sys.exit(1)
+                raise ValueError("SAMSUNG_TV_IP not found in .env file")
             tv_ip = env_ip
 
-        self.tv_ip = tv_ip
+        self.tv_ip: str = tv_ip
         self.tv: Any = None
         self._initialize_tv_connection()
         
@@ -275,8 +277,8 @@ class TVImageUploader:
                 logger.debug("Closed existing connection for clean start")
                 # Wait after closing connection
                 time.sleep(5)
-            except:
-                pass
+            except Exception as e:
+                logger.debug(f"Error closing connection (non-critical): {e}")
         
         try:
             logger.info("Starting single patient upload attempt...")
@@ -569,8 +571,8 @@ class TVImageUploader:
                     if original_settimeout is not None:
                         socket.socket.settimeout = original_settimeout
                         logger.debug("Restored original socket.settimeout function")
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Error restoring socket timeout (non-critical): {e}")
                 
             logger.info(f"Uploaded image without matte, content ID: {content_id}")
             logger.debug(f"Content ID type: {type(content_id)}, value: '{content_id}'")

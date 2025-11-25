@@ -184,7 +184,11 @@ class DailyArtApp:
             # Initialize TV uploader if needed
             tv_uploader: Optional[TVImageUploader] = None
             if not skip_upload:
-                tv_uploader = TVImageUploader(self.tv_ip)
+                try:
+                    tv_uploader = TVImageUploader(self.tv_ip)
+                except ValueError as e:
+                    self.logger.error(f"Configuration error: {e}")
+                    return False
             
             # Step 1: Get or generate an image
             if custom_image and os.path.exists(custom_image):
@@ -513,132 +517,6 @@ class DailyArtApp:
             return False
 
 
-def create_upload_module() -> None:
-    """Create the upload_image.py module if it doesn't exist."""
-    if os.path.exists("upload_image.py"):
-        return
-
-    upload_module_content = """#!/usr/bin/env python3
-\"\"\"Module for uploading images to Samsung Frame TV.\"\"\"
-
-import os
-import sys
-import urllib3
-from typing import Optional
-from dotenv import load_dotenv
-from samsungtvws import SamsungTVWS
-import time
-
-# Suppress InsecureRequestWarning for local TV connections
-urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-
-class TVImageUploader:
-    \"\"\"Class to handle image upload and display on Samsung Frame TV.\"\"\"
-
-    def __init__(self, tv_ip: str = None) -> None:
-        \"\"\"Initialize the uploader with TV IP address.
-
-        Args:
-            tv_ip: The IP address of the Samsung TV. If None, it will
-                  be loaded from the SAMSUNG_TV_IP environment variable.
-        \"\"\"
-        if not tv_ip:
-            load_dotenv()
-            tv_ip = os.getenv("SAMSUNG_TV_IP")
-            if not tv_ip:
-                print("Error: SAMSUNG_TV_IP not found in .env file")
-                sys.exit(1)
-
-        self.tv_ip = tv_ip
-        self.tv = SamsungTVWS(tv_ip, port=8002, name="DailyArtApp")
-
-    def upload_image(self, image_path: str) -> Optional[str]:
-        \"\"\"Upload an image to the TV.
-
-        Args:
-            image_path: Path to the image file to upload.
-
-        Returns:
-            Content ID if successful, None otherwise.
-        \"\"\"
-        if not os.path.exists(image_path):
-            print(f"Error: Image {image_path} not found")
-            return None
-
-        try:
-            # Read the image file as binary data
-            with open(image_path, 'rb') as f:
-                data = f.read()
-
-            # Determine file type from extension
-            file_type = os.path.splitext(image_path)[1][1:].upper()
-            if file_type.upper() == 'JPG':
-                file_type = 'JPEG'
-
-            # Upload the image
-            content_id = self.tv.art().upload(data, file_type=file_type)
-            return content_id
-
-        except Exception as e:
-            print(f"Error uploading image: {e}")
-            return None
-
-    def set_active_art(self, content_id: str) -> bool:
-        \"\"\"Set an uploaded image as the active art.
-
-        Args:
-            content_id: The content ID of the image to set as active.
-
-        Returns:
-            True if successful, False otherwise.
-        \"\"\"
-        try:
-            # Try to ensure TV is in Art Mode
-            try:
-                self.tv.art().set_artmode(True)
-            except Exception:
-                # Art mode switching sometimes fails, but we can still
-                # set the active image
-                pass
-
-            # Set the image as active
-            try:
-                self.tv.art().select_image(content_id)
-                return True
-            except Exception as e:
-                print(f"Error setting active image: {e}")
-
-                # Try alternative approach
-                try:
-                    # Get list of all uploaded images
-                    content_list = self.tv.art().get_content_list()
-                    # Find matching content ID or use the first one
-                    target_id = content_id
-                    if content_list and len(content_list) > 0:
-                        # Look for our specific content_id first
-                        found = False
-                        for item in content_list:
-                            if item.get("content_id") == content_id:
-                                found = True
-                                break
-                        if not found and len(content_list) > 0:
-                            # Use first available if ours not found
-                            target_id = content_list[0].get("content_id")
-                        self.tv.art().select_image(target_id)
-                        return True
-                except Exception as e2:
-                    print(f"Alternative approach failed: {e2}")
-                    return False
-        except Exception as e:
-            print(f"Error setting active art: {e}")
-            return False
-"""
-
-    with open("upload_image.py", "w") as f:
-        f.write(upload_module_content)
-
-
 def main() -> None:
     """Main function to parse arguments and run the application."""
     parser = argparse.ArgumentParser(
@@ -694,9 +572,6 @@ def main() -> None:
         for name, params in presets.items():
             print(f"  {name}")
         sys.exit(0)
-    
-    # Ensure required modules exist
-    create_upload_module()
 
     # Run application
     if args.verbose:

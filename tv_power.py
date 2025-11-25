@@ -43,9 +43,11 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 try:
     from samsungtvws import SamsungTVWS  # type: ignore
     from samsungtvws.exceptions import HttpApiError  # type: ignore
-except ImportError:
-    print("Error: samsungtvws not installed. Run: pip install -r requirements.txt")
-    sys.exit(1)
+except ImportError as e:
+    raise ImportError(
+        "samsungtvws library not installed. "
+        "Run: pip install -r requirements.txt"
+    ) from e
 
 # Optional: Import Wake-on-LAN if available
 try:

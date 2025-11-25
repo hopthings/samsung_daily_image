@@ -167,16 +167,19 @@ class ImageGenerator:
     ]
 
     def __init__(self) -> None:
-        """Initialize the generator with API key from environment."""
-        load_dotenv()
-        self.api_key = os.getenv("OPENAI_API_KEY")
-        if not self.api_key:
-            print("Error: OPENAI_API_KEY not found in .env file")
-            sys.exit(1)
+        """Initialize the generator with API key from environment.
 
-        self.image_dir = "generated_images"
+        Raises:
+            ValueError: If OPENAI_API_KEY is not found in environment.
+        """
+        load_dotenv()
+        self.api_key: Optional[str] = os.getenv("OPENAI_API_KEY")
+        if not self.api_key:
+            raise ValueError("OPENAI_API_KEY not found in .env file")
+
+        self.image_dir: str = "generated_images"
         os.makedirs(self.image_dir, exist_ok=True)
-        self.weather_service = WeatherService()
+        self.weather_service: WeatherService = WeatherService()
 
     def _get_art_styles(self) -> List[str]:
         """Get art styles that work with the impasto/palette knife style.
@@ -405,7 +408,15 @@ class ImageGenerator:
         except requests.exceptions.RequestException as e:
             print(f"Error generating image: {e}")
             if hasattr(e, 'response') and e.response is not None:
-                print(f"Response: {e.response.text}")
+                # Only log status code to avoid exposing credentials
+                print(f"Response status code: {e.response.status_code}")
+                try:
+                    error_data = e.response.json()
+                    # Only log safe error message fields, not full response
+                    if 'error' in error_data and 'message' in error_data['error']:
+                        print(f"Error message: {error_data['error']['message']}")
+                except (ValueError, KeyError):
+                    print("Error response could not be parsed")
             return None
 
     def _download_image(self, url: str, prompt: str) -> Optional[str]:
@@ -455,7 +466,12 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    generator = ImageGenerator()
+    try:
+        generator = ImageGenerator()
+    except ValueError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
     image_path = generator.generate_image(args.prompt)
 
     if image_path:
