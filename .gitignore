@@ -29,6 +29,16 @@ Thumbs.db
 daily_art.log
 pi_logs/
 
+# Runtime artifacts
+last_uploaded_id.txt
+last_content_id.txt
+*.jpeg
+*.jpg
+*.png
+!sample_*.jpeg
+!sample_*.jpg
+!sample_*.png
+
 # Local configuration files
 *.plist
 CLAUDE.md
