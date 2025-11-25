@@ -5,6 +5,8 @@ Automatically generate and display art on your Samsung Frame TV. This applicatio
 ## Features
 
 - Generate art images with DALL-E 3 using palette knife/impasto styles (16:9 aspect ratio)
+- Weather-based art prompts that adapt to local conditions (sunny, rainy, snowy, etc.)
+- Holiday-themed art generation (Christmas, Halloween, Valentine's Day, etc.)
 - Image enhancement with multiple presets (sharpening, color enhancement, etc.)
 - Image upscaling for optimal TV display quality
 - Upload images to Samsung Frame TV with automatic size optimization
@@ -25,7 +27,7 @@ Automatically generate and display art on your Samsung Frame TV. This applicatio
 
 1. Clone this repository:
 ```bash
-git clone https://github.com/yourusername/samsung_daily_image.git
+git clone https://github.com/hopthings/samsung_daily_image.git
 cd samsung_daily_image
 ```
 
@@ -40,11 +42,12 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-4. Create a `.env` file with your configuration:
+4. Create a `.env` file with your configuration (see `.env.example`):
 ```
 OPENAI_API_KEY=your_openai_api_key
 SAMSUNG_TV_IP=your_tv_ip_address
-SAMSUNG_TV_MAC=your_tv_mac_address  # Optional: for wake-on-LAN support
+SAMSUNG_TV_MAC=your_tv_mac_address      # Optional: for wake-on-LAN support
+WEATHER_LOCATION=51.5074,-0.1278        # Optional: lat,lon for weather-based art
 ```
 
 ## Usage
@@ -166,7 +169,7 @@ Add the following line to run daily at 8 AM:
 
 2. **Upload timeouts**:
    - Use `--verbose` flag for detailed network logging
-   - Check image file size (automatically optimized to <10MB)
+   - Check image file size (automatically optimized to <5MB)
    - Verify TV is powered on and connected to network
 
 3. **TV not responding**:
