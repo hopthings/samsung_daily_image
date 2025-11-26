@@ -4,7 +4,7 @@
 import os
 import sys
 import argparse
-from typing import List, Dict, Any
+from typing import Any, Dict, List, Optional
 from image_enhancement import (
     load_image,
     save_image,
