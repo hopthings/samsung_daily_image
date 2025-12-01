@@ -317,11 +317,13 @@ class ImageGenerator:
 
         # Example subjects for the LLM to use as guidance
         subject_examples = {
-            "Winter": "snowy landscapes, winter berries, frost patterns, winter flowers, winter bouquets, winter flowers in a vase", # options: fields of heather or winter jasmine
-            "Spring": "cherry blossoms, tulips, spring gardens, spring bouquets, wild flowers, spring flowers in a vase", # options: fields of daffodils or bluebells
-            "Summer": "summer gardens, sunflowers, nature, summer bouquets, summer wild flowers, summer flowers in a vase, poppies in a meadow, lavender fields", # options: fields of daisies or zinnias
-            "Autumn": "autumn foliage, harvest scenes, fall colors, fall flowers, autumn leaves, autumnal bouquets, autumn flowers in a vase" # options: fields of asters or goldenrod
+            "Winter": "snowy landscapes, winter berries, frost patterns, winter flowers, winter bouquets, winter flowers in a vase", 
+            "Spring": "cherry blossoms, tulips, spring gardens, spring bouquets, wild flowers, spring flowers in a vase", 
+            "Summer": "summer gardens, sunflowers, nature, summer bouquets, summer wild flowers, summer flowers in a vase, poppies in a meadow, lavender fields", 
+            "Autumn": "autumn foliage, harvest scenes, fall colors, fall flowers, autumn leaves, autumnal bouquets, autumn flowers in a vase" 
         }
+        # Get examples for the current season with fallback
+        examples = subject_examples.get(season, "seasonal landscapes, nature scenes, and flowers appropriate to the time of year")
 
         # Create detailed context-aware prompt for DALL-E
         prompt = (
@@ -341,11 +343,16 @@ class ImageGenerator:
                 prompt += f"Use a {active_holiday.palette}. "
         else:
             prompt += (
-                f"Choose a subject relevant to "
-                f"this day and time of year. Focus on a single seasonal subject that evokes this time of year. "
-                f"This could be something like {subject_examples[season]}, "
-                f"or something more unexpected but still seasonally appropriate. Feel free to interpret the theme creatively based on the time of year. "
-                f"Use a soft, natural {season} palette with subtle, muted tones—avoid overly vibrant or saturated colours. "
+                f"Choose a subject relevant to this day and time of year. "
+                f"Focus on a single seasonal subject that evokes this time of year. "
+                f"Examples include {examples}. "
+                f"Indoor still-life subjects such as flowers in a vase are allowed, "
+                f"but only when depicted indoors on a table or surface. "
+                f"Do not place vases, bowls, or other indoor objects outdoors, "
+                f"and do not position them on streets, pavements, snow, or public walkways. "
+                f"Keep the composition naturalistic and believable. "
+                f"Use a soft, natural {season.lower()} palette with subtle, muted tones—avoid overly vibrant or saturated colours. "
+                f"The scene should be either clearly indoors or clearly outdoors, not a mixture of both. "
             )
 
         prompt += (
