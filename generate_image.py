@@ -315,50 +315,83 @@ class ImageGenerator:
         # Choose a random art style
         style = random.choice(art_styles)
 
-        # Example subjects for the LLM to use as guidance
-        subject_examples = {
-            "Winter": "snowy landscapes, winter berries, frost patterns, winter flowers, winter bouquets, winter flowers in a vase", 
-            "Spring": "cherry blossoms, tulips, spring gardens, spring bouquets, wild flowers, spring flowers in a vase", 
-            "Summer": "summer gardens, sunflowers, nature, summer bouquets, summer wild flowers, summer flowers in a vase, poppies in a meadow, lavender fields", 
-            "Autumn": "autumn foliage, harvest scenes, fall colors, fall flowers, autumn leaves, autumnal bouquets, autumn flowers in a vase" 
-        }
-        # Get examples for the current season with fallback
-        examples = subject_examples.get(season, "seasonal landscapes, nature scenes, and flowers appropriate to the time of year")
+        # Choose scene type: indoor or outdoor (ensures no mixed compositions)
+        scene_type = random.choice(["indoor", "outdoor"])
 
         # Create detailed context-aware prompt for DALL-E
         prompt = (
             f"Create a high-quality {style} art piece for {weekday}, "
             f"{formatted_date} in {season}. "
         )
-        
-        if weather_modifier:
-            prompt += f"The scene should reflect the current weather: {weather_desc}. Incorporate {weather_modifier}. "
-            
+
         if active_holiday:
+            # Holiday-specific prompts (weather shown directly)
+            if weather_modifier:
+                prompt += f"The scene should reflect the current weather: {weather_desc}. Incorporate {weather_modifier}. "
             prompt += f"{active_holiday.prompt_modifier} "
             subject = random.choice(active_holiday.subjects)
             prompt += f"The subject should be a {subject}. "
-            
+
             if active_holiday.palette:
                 prompt += f"Use a {active_holiday.palette}. "
         else:
-            prompt += (
-                f"Choose a subject relevant to this day and time of year. "
-                f"Focus on a single seasonal subject that evokes this time of year. "
-                f"Examples include {examples}. "
-                f"Indoor still-life subjects such as flowers in a vase are allowed, "
-                f"but only when depicted indoors on a table or surface. "
-                f"Do not place vases, bowls, or other indoor objects outdoors, "
-                f"and do not position them on streets, pavements, snow, or public walkways. "
-                f"Keep the composition naturalistic and believable. "
-                f"Use a soft, natural {season.lower()} palette with subtle, muted tones—avoid overly vibrant or saturated colours. "
-                f"The scene should be either clearly indoors or clearly outdoors, not a mixture of both. "
-            )
+            # Non-holiday: use indoor/outdoor scene type logic
+            if scene_type == "indoor":
+                # Randomly decide whether to show weather through a window
+                show_window_weather = random.choice([True, False])
+
+                if weather_modifier and show_window_weather:
+                    # Indoor weather: subtle, through window or lighting
+                    prompt += (
+                        f"The scene should subtly hint at the weather outside, visible only indirectly through a window "
+                        f"or implied by lighting and colour temperature. "
+                        f"Do not bring outdoor weather effects into the interior space. "
+                    )
+                    window_guidance = (
+                        f"The weather outside may be suggested subtly—such as a soft, unfocused view through a window "
+                        f"or implied through the lighting—but do not show balconies, terraces, railings, exterior ground, "
+                        f"or snow touching any indoor objects. "
+                    )
+                else:
+                    # Pure indoor scene, no window or weather reference
+                    window_guidance = (
+                        f"Do not include any windows, doors, or views to the outside. "
+                        f"Focus entirely on the indoor still-life composition. "
+                    )
+
+                prompt += (
+                    f"Create an intimate indoor still-life scene. "
+                    f"The entire scene should be set inside a room. "
+                    f"Indoor still-life subjects such as flowers in a vase or bowls of {season.lower()} berries "
+                    f"are allowed only on indoor surfaces like tables or shelves. "
+                    f"{window_guidance}"
+                    f"Keep the composition clearly and unmistakably indoors. "
+                    f"Use a soft, natural {season.lower()} palette with subtle, muted tones—avoid overly vibrant or saturated colours. "
+                )
+            else:
+                # Outdoor weather: shown directly in the landscape
+                if weather_modifier:
+                    prompt += (
+                        f"The scene should directly show the current weather: {weather_desc}. "
+                        f"Incorporate {weather_modifier} naturally into the outdoor landscape. "
+                    )
+                prompt += (
+                    f"Create an outdoor {season.lower()} landscape scene. "
+                    f"Focus on natural elements such as trees, hedgerows, {season.lower()} foliage, "
+                    f"fields, rivers, and atmospheric lighting appropriate to the season. "
+                    f"Do not include any vases, pots, planters, bowls, tables, furniture, rugs, balconies, or window sills. "
+                    f"Do not include still-life arrangements or man-made containers of any kind. "
+                    f"The scene must be clearly and unmistakably outdoors. "
+                    f"Use a soft, natural {season.lower()} palette with subtle, muted tones—avoid overly vibrant or saturated colours. "
+                )
 
         prompt += (
             f"The painting should emulate the look and feel of real paint on canvas, with visible brushstrokes and layered "
             f"texture. Aim for a realistic fine art aesthetic, evoking the softness of traditional oil or acrylic painting. "
             f"Ensure 16:9 aspect ratio. Create fine art with texture and depth. "
+            f"IMPORTANT: The image must fill the entire canvas edge-to-edge with no borders, vignettes, frames, "
+            f"faded edges, rough borders, or any kind of border effect. Do not leave any gaps, white space, "
+            f"or incomplete areas around the edges. The artwork should extend fully to all four edges. "
             f"IMPORTANT: Do not include any text, words, letters, dates, signatures, or written elements anywhere in the image. "
             f"This should be a pure visual artwork without any textual content whatsoever. "
         )
