@@ -1,8 +1,9 @@
 """Weather service for fetching current weather conditions from Open-Meteo API."""
 
 import logging
+import random
 import requests
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -89,25 +90,75 @@ class WeatherService:
     def get_weather_prompt_modifier(self, weather_data: Dict[str, str]) -> str:
         """
         Get a string modifier for the art prompt based on weather.
+        Randomly selects from multiple options for variety.
         """
         if not weather_data:
             return ""
-            
+
         condition = weather_data["condition"].lower()
         code = weather_data.get("code", -1)
-        
-        # Map conditions to artistic moods/elements
+
+        # Map conditions to lists of artistic moods/elements for variety
+        clear_modifiers: List[str] = [
+            "bathed in warm sunlight, clear blue skies, natural lighting",
+            "warm golden sunlight, crisp clear day, long soft shadows",
+            "gentle sunshine, pale blue sky, luminous atmosphere",
+            "dappled sunlight, bright and airy, peaceful mood",
+            "sun-lit scene, gentle contrasts, natural colours",
+        ]
+
+        cloudy_modifiers: List[str] = [
+            "soft diffused lighting, dramatic cloudy sky, atmospheric mood",
+            "overcast sky, gentle even lighting, contemplative mood",
+            "brooding clouds, muted tones, peaceful grey light",
+            "silvery cloud cover, soft shadows, tranquil atmosphere",
+            "layered clouds, filtered light, subtle colour palette",
+        ]
+
+        fog_modifiers: List[str] = [
+            "misty atmosphere, ethereal fog, mysterious mood, soft edges",
+            "thick morning mist, shapes emerging from haze, dreamlike quality",
+            "veiled in fog, muted distant forms, intimate foreground",
+            "swirling mist, ghostly atmosphere, limited visibility adding mystery",
+            "soft foggy glow, silhouettes fading into grey, hushed mood",
+        ]
+
+        rain_modifiers: List[str] = [
+            "rainy atmosphere, wet surfaces reflecting light, cozy rainy day vibe",
+            "gentle rainfall, glistening wet textures, fresh and clean feeling",
+            "rain-soaked scene, puddles reflecting sky, rich saturated colours",
+            "steady drizzle, soft grey tones, peaceful melancholy",
+            "rain streaming down, blurred backgrounds, intimate sheltered feeling",
+        ]
+
+        snow_modifiers: List[str] = [
+            "snowy scene, winter wonderland, falling snow, soft white textures",
+            "fresh snowfall, pristine white blanket, hushed winter silence",
+            "snow-covered landscape, cool blue shadows on white, crisp cold air",
+            "gentle snowflakes drifting, frosted surfaces, cozy winter mood",
+            "deep snow, muted colours against white, peaceful winter stillness",
+        ]
+
+        thunder_modifiers: List[str] = [
+            "dramatic storm lighting, dark skies, powerful atmosphere",
+            "brooding thunderclouds, flashes of light, electric tension",
+            "stormy drama, wind-swept scene, raw natural power",
+            "dark turbulent sky, moments before the storm, charged atmosphere",
+            "dramatic contrast of dark clouds and bright breaks, moody intensity",
+        ]
+
+        # Select appropriate modifier list and return random choice
         if "clear" in condition or code == 0:
-            return "bathed in bright sunlight, clear blue skies, vibrant lighting"
+            return random.choice(clear_modifiers)
         elif "cloud" in condition or code in [2, 3]:
-            return "soft diffused lighting, dramatic cloudy sky, atmospheric mood"
+            return random.choice(cloudy_modifiers)
         elif "fog" in condition or code in [45, 48]:
-            return "misty atmosphere, ethereal fog, mysterious mood, soft edges"
+            return random.choice(fog_modifiers)
         elif "rain" in condition or "drizzle" in condition or code in [51, 53, 55, 61, 63, 65, 80, 81, 82]:
-            return "rainy atmosphere, wet surfaces reflecting light, cozy rainy day vibe, glistening raindrops"
+            return random.choice(rain_modifiers)
         elif "snow" in condition or code in [71, 73, 75, 77, 85, 86]:
-            return "snowy scene, winter wonderland, falling snow, soft white textures, cold atmosphere"
+            return random.choice(snow_modifiers)
         elif "thunder" in condition or code in [95, 96, 99]:
-            return "dramatic storm lighting, dark skies, powerful atmosphere"
-            
+            return random.choice(thunder_modifiers)
+
         return ""
