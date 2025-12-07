@@ -392,6 +392,8 @@ class ImageGenerator:
             f"IMPORTANT: The image must fill the entire canvas edge-to-edge with no borders, vignettes, frames, "
             f"faded edges, rough borders, or any kind of border effect. Do not leave any gaps, white space, "
             f"or incomplete areas around the edges. The artwork should extend fully to all four edges. "
+            f"IMPORTANT: Do not paint any picture frames, decorative frames, gilded frames, wooden frames, "
+            f"or frame-like borders as part of the artwork. The image should be the artwork itself, not a painting of a framed painting. "
             f"IMPORTANT: Do not include any text, words, letters, dates, signatures, or written elements anywhere in the image. "
             f"This should be a pure visual artwork without any textual content whatsoever. "
         )
