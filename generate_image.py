@@ -343,12 +343,12 @@ class ImageGenerator:
                 if weather_modifier and show_window_weather:
                     # Indoor weather: subtle, through window or lighting
                     prompt += (
-                        f"The scene should subtly hint at the weather outside, visible only indirectly through a window "
+                        f"The scene should hint at the weather outside, visible through a window "
                         f"or implied by lighting and colour temperature. "
                         f"Do not bring outdoor weather effects into the interior space. "
                     )
                     window_guidance = (
-                        f"The weather outside may be suggested subtly—such as a soft, unfocused view through a window "
+                        f"The weather outside may be suggested through a window view "
                         f"or implied through the lighting—but do not show balconies, terraces, railings, exterior ground, "
                         f"or snow touching any indoor objects. "
                     )
@@ -366,36 +366,48 @@ class ImageGenerator:
                     f"are allowed only on indoor surfaces like tables or shelves. "
                     f"{window_guidance}"
                     f"Keep the composition clearly and unmistakably indoors. "
-                    f"Use a soft, natural {season.lower()} palette with subtle, muted tones—avoid overly vibrant or saturated colours. "
+                    f"Use a natural {season.lower()} palette with balanced, harmonious tones—avoid overly vibrant or saturated colours. "
                 )
             else:
                 # Outdoor weather: shown directly in the landscape
                 if weather_modifier:
                     prompt += (
                         f"The scene should directly show the current weather: {weather_desc}. "
-                        f"Incorporate {weather_modifier} naturally into the outdoor landscape. "
+                        f"Incorporate {weather_modifier} naturally into the outdoor scene. "
                     )
+
+                # Season-specific inspiration (loose guidance, not prescriptive)
+                seasonal_inspiration = {
+                    "Spring": "blossoms, fresh growth, wildflowers, soft morning light, new leaves, birdsong atmosphere",
+                    "Summer": "warm golden light, meadows, coastal scenes, full bloom, lazy afternoons, long shadows",
+                    "Autumn": "golden and russet tones, fallen leaves, misty mornings, harvest time, berries, bare branches",
+                    "Winter": "frost, bare trees, holly, snow, cold light, quiet stillness, ice, evergreens",
+                }
+
+                inspiration = seasonal_inspiration.get(season, seasonal_inspiration["Autumn"])
+
                 prompt += (
-                    f"Create an outdoor {season.lower()} landscape scene. "
-                    f"Focus on natural elements such as trees, hedgerows, {season.lower()} foliage, "
-                    f"fields, rivers, and atmospheric lighting appropriate to the season. "
+                    f"Create an outdoor {season.lower()} nature scene. "
+                    f"Draw inspiration from: {inspiration}. "
+                    f"This could be a wide landscape, a close-up detail, or an abstract composition - vary the approach. "
                     f"Do not include any vases, pots, planters, bowls, tables, furniture, rugs, balconies, or window sills. "
                     f"Do not include still-life arrangements or man-made containers of any kind. "
                     f"The scene must be clearly and unmistakably outdoors. "
-                    f"Use a soft, natural {season.lower()} palette with subtle, muted tones—avoid overly vibrant or saturated colours. "
+                    f"Use a natural {season.lower()} palette with balanced, harmonious tones—avoid overly vibrant or saturated colours. "
                 )
 
         prompt += (
+            f"COMPOSITION: The scene extends fully to all four edges of the image. "
+            f"The landscape/subject continues beyond the frame boundaries as if viewing through a window. "
+            f"There are NO borders, NO painted frames, NO vignettes, NO darkened edges, NO faded corners, "
+            f"and NO decorative edge treatments of any kind. The image is borderless and frameless. "
+        )
+
+        prompt += (
             f"The painting should emulate the look and feel of real paint on canvas, with visible brushstrokes and layered "
-            f"texture. Aim for a realistic fine art aesthetic, evoking the softness of traditional oil or acrylic painting. "
-            f"Ensure 16:9 aspect ratio. Create fine art with texture and depth. "
-            f"IMPORTANT: The image must fill the entire canvas edge-to-edge with no borders, vignettes, frames, "
-            f"faded edges, rough borders, or any kind of border effect. Do not leave any gaps, white space, "
-            f"or incomplete areas around the edges. The artwork should extend fully to all four edges. "
-            f"IMPORTANT: Do not paint any picture frames, decorative frames, gilded frames, wooden frames, "
-            f"or frame-like borders as part of the artwork. The image should be the artwork itself, not a painting of a framed painting. "
-            f"IMPORTANT: Do not include any text, words, letters, dates, signatures, or written elements anywhere in the image. "
-            f"This should be a pure visual artwork without any textual content whatsoever. "
+            f"texture. Aim for a realistic fine art aesthetic with crisp, well-defined details and sharp edges on forms. "
+            f"Ensure 16:9 aspect ratio. Create fine art with texture, depth, and clarity. "
+            f"Do not include any text, words, letters, signatures, or written elements. "
         )
 
         return prompt
