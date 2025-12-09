@@ -397,17 +397,18 @@ class ImageGenerator:
                 )
 
         prompt += (
-            f"COMPOSITION: The scene extends fully to all four edges of the image. "
-            f"The landscape/subject continues beyond the frame boundaries as if viewing through a window. "
-            f"There are NO borders, NO painted frames, NO vignettes, NO darkened edges, NO faded corners, "
-            f"and NO decorative edge treatments of any kind. The image is borderless and frameless. "
+            f"STYLE: Use visible palette knife strokes and thick impasto texture throughout. "
+            f"The artwork should have the tactile quality of oil paint applied with a knife. "
         )
 
         prompt += (
-            f"The painting should emulate the look and feel of real paint on canvas, with visible brushstrokes and layered "
-            f"texture. Aim for a realistic fine art aesthetic with crisp, well-defined details and sharp edges on forms. "
-            f"Ensure 16:9 aspect ratio. Create fine art with texture, depth, and clarity. "
-            f"Do not include any text, words, letters, signatures, or written elements. "
+            f"CRITICAL RULES: "
+            f"(1) FULL BLEED - the artwork must extend to all four edges with no borders, frames, canvas edges, "
+            f"vignettes, or margins visible. The scene continues beyond the image boundaries. "
+            f"(2) NOT A META-IMAGE - do not depict a painting, canvas, easel, art supplies, brushes, or reference photos. "
+            f"The image IS the artwork, not a picture OF an artwork. "
+            f"(3) NO TEXT - no words, letters, signatures, or watermarks. "
+            f"(4) 16:9 aspect ratio. "
         )
 
         return prompt
