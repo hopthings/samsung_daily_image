@@ -75,20 +75,10 @@ class DailyArtApp:
         for file_path in self.intermediate_files:
             try:
                 if os.path.exists(file_path):
-                    # Also look for associated prompt file
-                    prompt_file = None
-                    # Extract base path correctly for both .jpeg (5 chars) and .jpg (4 chars)
-                    base_path, _ = os.path.splitext(file_path)
-                    prompt_file = f"{base_path}_prompt.txt"
-                    
-                    # Delete the image file
+                    # Delete the intermediate image file
+                    # Note: prompt files are kept for debugging purposes
                     os.remove(file_path)
                     self.logger.debug(f"Deleted intermediate file: {file_path}")
-                    
-                    # Delete associated prompt file if it exists
-                    if prompt_file and os.path.exists(prompt_file):
-                        os.remove(prompt_file)
-                        self.logger.debug(f"Deleted prompt file: {prompt_file}")
             except Exception as e:
                 self.logger.warning(f"Failed to delete intermediate file {file_path}: {e}")
 

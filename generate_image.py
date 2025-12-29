@@ -12,6 +12,10 @@ from datetime import datetime
 import random
 from weather_service import WeatherService
 
+# Use SystemRandom for better randomness on embedded systems (Pi)
+# This reads from /dev/urandom for each call instead of Mersenne Twister
+secure_random = random.SystemRandom()
+
 
 class HolidayConfig(NamedTuple):
     """Configuration for a holiday season."""
@@ -313,10 +317,11 @@ class ImageGenerator:
             print("WEATHER_LOCATION not set in .env (format: lat,lon), skipping weather.")
 
         # Choose a random art style
-        style = random.choice(art_styles)
+        style = secure_random.choice(art_styles)
 
         # Choose scene type: indoor or outdoor (ensures no mixed compositions)
-        scene_type = random.choice(["indoor", "outdoor"])
+        scene_type = secure_random.choice(["indoor", "outdoor"])
+        print(f"Selected scene type: {scene_type}")
 
         # Create detailed context-aware prompt for DALL-E
         prompt = (
@@ -329,7 +334,7 @@ class ImageGenerator:
             if weather_modifier:
                 prompt += f"The scene should reflect the current weather: {weather_desc}. Incorporate {weather_modifier}. "
             prompt += f"{active_holiday.prompt_modifier} "
-            subject = random.choice(active_holiday.subjects)
+            subject = secure_random.choice(active_holiday.subjects)
             prompt += f"The subject should be a {subject}. "
 
             if active_holiday.palette:
@@ -337,33 +342,85 @@ class ImageGenerator:
         else:
             # Non-holiday: use indoor/outdoor scene type logic
             if scene_type == "indoor":
-                # Randomly decide whether to show weather through a window
-                show_window_weather = random.choice([True, False])
+                # Randomly decide whether to hint at weather through a window
+                show_window_weather = secure_random.choice([True, False])
 
                 if weather_modifier and show_window_weather:
-                    # Indoor weather: subtle, through window or lighting
+                    # Indoor weather: subtle, through window or lighting only
                     prompt += (
-                        f"The scene should hint at the weather outside, visible through a window "
+                        f"The scene should subtly hint at the weather outside via a distant window view "
                         f"or implied by lighting and colour temperature. "
                         f"Do not bring outdoor weather effects into the interior space. "
                     )
                     window_guidance = (
-                        f"The weather outside may be suggested through a window view "
-                        f"or implied through the lighting—but do not show balconies, terraces, railings, exterior ground, "
-                        f"or snow touching any indoor objects. "
+                        f"If a window is shown, it must be simple and unobtrusive. "
+                        f"Do not show balconies, terraces, railings, exterior ground, or snow touching indoor objects. "
                     )
                 else:
-                    # Pure indoor scene, no window or weather reference
+                    # Pure indoor scene, no exterior reference
                     window_guidance = (
                         f"Do not include any windows, doors, or views to the outside. "
                         f"Focus entirely on the indoor still-life composition. "
                     )
 
+                # Variety knobs for indoor still-life scenes (keep uncluttered and Frame-friendly)
+                indoor_subjects_by_season = {
+                    "Spring": [
+                        "a simple vase with a few spring blossoms",
+                        "a ceramic bowl of lemons and fresh green leaves",
+                        "a single tulip in a glass bottle",
+                        "a quiet still-life of a cup and a small plate with a pastry",
+                        "a linen cloth with a small bundle of wildflowers",
+                        "a pale ceramic jug with a few branches of new leaves",
+                    ],
+                    "Summer": [
+                        "a bowl of peaches or apricots on a rustic table",
+                        "a carafe of water with citrus slices and condensation",
+                        "a small vase of sunlit garden flowers",
+                        "a still-life of a straw hat and a folded linen cloth",
+                        "a simple plate of ripe berries with a spoon",
+                        "a single sunflower in a minimalist vase",
+                    ],
+                    "Autumn": [
+                        "a few pumpkins or gourds arranged simply",
+                        "a bowl of apples and pears with warm shadows",
+                        "a mug of tea with a book and soft textile",
+                        "a still-life of autumn leaves on a wooden surface",
+                        "a small candle beside dried grasses",
+                        "a ceramic bowl of figs with a dark cloth",
+                    ],
+                    "Winter": [
+                        "a single candle with warm glow and deep shadows",
+                        "a mug of hot chocolate on a dark wooden table",
+                        "a minimalist still-life of pine sprigs and a small ornament",
+                        "a folded wool blanket with a simple ceramic cup",
+                        "a bowl of winter citrus (oranges) with a muted background",
+                        "a quiet still-life of a teapot and two cups",
+                    ],
+                }
+
+                # Composition / viewpoint variety to avoid same-looking indoor images
+                indoor_compositions = [
+                    "close-up still-life with one strong focal object",
+                    "simple tabletop arrangement with two to three objects maximum",
+                    "minimalist composition with large areas of negative space",
+                    "top-down view of a small arrangement on a table",
+                    "side-lit composition with dramatic shadows",
+                    "soft, diffused light and gentle tonal transitions",
+                ]
+
+                # Pick subject + composition with secure randomness
+                season_subjects = indoor_subjects_by_season.get(season, indoor_subjects_by_season["Autumn"])
+                indoor_subject = secure_random.choice(season_subjects)
+                indoor_composition = secure_random.choice(indoor_compositions)
+
                 prompt += (
                     f"Create an intimate indoor still-life scene. "
-                    f"The entire scene should be set inside a room. "
-                    f"Indoor still-life subjects such as flowers in a vase or bowls of {season.lower()} berries "
-                    f"are allowed only on indoor surfaces like tables or shelves. "
+                    f"The entire scene must be set inside a room. "
+                    f"Choose a {indoor_composition}. "
+                    f"The subject should be {indoor_subject}. "
+                    f"Limit the scene to a small number of objects and avoid clutter or busy interiors. "
+                    f"All objects must sit on clearly indoor surfaces like tables, shelves, or counters. "
                     f"{window_guidance}"
                     f"Keep the composition clearly and unmistakably indoors. "
                     f"Use a natural {season.lower()} palette with balanced, harmonious tones—avoid overly vibrant or saturated colours. "
