@@ -320,7 +320,8 @@ class ImageGenerator:
         style = secure_random.choice(art_styles)
 
         # Choose scene type: indoor or outdoor (ensures no mixed compositions)
-        scene_type = secure_random.choice(["indoor", "outdoor"])
+        # Weighted 60% outdoor, 40% indoor
+        scene_type = "outdoor" if secure_random.random() < 0.6 else "indoor"
         print(f"Selected scene type: {scene_type}")
 
         # Create detailed context-aware prompt for DALL-E
