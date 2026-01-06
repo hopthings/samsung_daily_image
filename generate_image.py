@@ -490,6 +490,10 @@ class ImageGenerator:
         prompt += (
             f"STYLE: Use visible palette knife strokes and thick impasto texture throughout. "
             f"The artwork should have the tactile quality of oil paint applied with a knife. "
+            f"COLOUR: Use muted, naturalistic colour values typical of traditional oil painting. "
+            f"Colours should have the slightly greyed, earthy quality of real pigments—avoid "
+            f"oversaturated, digitally-enhanced, or neon-bright tones. Keep the palette restrained "
+            f"and harmonious, as in gallery-quality oil paintings. "
         )
 
         prompt += (
