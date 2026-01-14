@@ -445,7 +445,7 @@ class ImageGenerator:
                         "chestnuts and copper in candlelight",
                     ],
                     "Winter": [
-                        "candles and deep shadows in warm lamplight",
+                        "candlelit still-life with soft reflections",
                         "winter citrus and brass vessels",
                         "dried flowers and aged pottery in soft light",
                         "pomegranate and dark velvet",
