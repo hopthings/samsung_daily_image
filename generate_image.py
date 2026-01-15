@@ -353,8 +353,13 @@ class ImageGenerator:
         style = secure_random.choice(art_styles)
 
         # Choose scene type: indoor or outdoor (ensures no mixed compositions)
-        # Weighted 60% outdoor, 40% indoor
-        scene_type = "outdoor" if secure_random.random() < 0.6 else "indoor"
+        # Spring/Summer: 60% outdoor, 40% indoor (more interesting still-life options)
+        # Autumn/Winter: 75% outdoor, 25% indoor
+        if season in ("Spring", "Summer"):
+            outdoor_probability = 0.6
+        else:
+            outdoor_probability = 0.75
+        scene_type = "outdoor" if secure_random.random() < outdoor_probability else "indoor"
         print(f"Selected scene type: {scene_type}")
 
         # Create detailed context-aware prompt for DALL-E
@@ -412,6 +417,17 @@ class ImageGenerator:
                         "fern fronds and weathered pottery",
                         "spring branches and aged copper",
                         "ranunculus in muted morning light",
+                        # -- appended Spring entries --
+                        "a single spring flower in a tall, narrow ceramic vase, minimal composition",
+                        "a small bouquet of mixed spring flowers in a low stoneware vase",
+                        "delicate spring flowers arranged loosely in a clear glass vase",
+                        "a single tulip in a slender bottle, strong negative space",
+                        "ranunculus stems in a rounded ceramic vase, soft side light",
+                        "daffodils arranged casually in a wide, shallow vessel",
+                        "anemones in a simple glass vase with muted spring tones",
+                        "a sparse arrangement of wild spring flowers in a small earthenware pot",
+                        "spring blossoms overflowing slightly from a short ceramic vase",
+                        "a minimalist study of spring flowers in vases of varied heights",
                     ],
                     "Summer": [
                         "garden flowers in warm afternoon light",
@@ -431,30 +447,99 @@ class ImageGenerator:
                         "cosmos in a pale ceramic jug on linen",
                         "delphiniums and antique silver on dark wood",
                         "mixed summer blooms in weathered pottery",
+                        # -- appended Summer entries --
+                        "a loose bouquet of summer flowers in a tall ceramic vase",
+                        "sunflowers arranged simply in a large rustic vase, cropped tight",
+                        "garden flowers gathered casually in a wide glass vase",
+                        "a single summer bloom in a narrow-necked bottle, minimal",
+                        "dahlias arranged in a low bowl with strong shadow",
+                        "zinnias in mismatched small vases, restrained palette",
+                        "cosmos stems in a tall clear vase, airy composition",
+                        "a simple arrangement of meadow flowers in a stoneware jug",
+                        "summer flowers spilling gently from a short ceramic vessel",
+                        "a still-life of multiple summer vases with varied flower types, uncluttered",
                     ],
                     "Autumn": [
-                        "harvest still-life with gourds and copper",
-                        "wine and ripe fruit with dramatic chiaroscuro",
-                        "autumn foraging finds on weathered wood",
                         "fallen leaves and aged pottery",
-                        "apples and brass in warm lamplight",
-                        "dried grasses and seed pods in muted tones",
-                        "wild mushrooms and moss on dark wood",
+                        "apples on folded linen with warm side light",
+                        "pears on a dark cloth with rich shadows",
+                        "a small cluster of chestnuts on wood, intimate close-up",
+                        "a few walnuts in shell in a neutral bowl, minimal composition",
+                        "seed pods and dried grasses in muted tones",
+                        "a single branch with autumn berries in fading light",
                         "persimmons and dark cloth with rich shadows",
-                        "autumn branches and berries in fading light",
-                        "chestnuts and copper in candlelight",
+                        "figs and leaves in a restrained palette, close-up",
+                        "a simple still-life of quinces with soft highlights",
+                        "a handful of hazelnuts on linen, quiet framing",
+                        "a minimal arrangement of dried hydrangea heads, muted tones",
+                        "a single autumn leaf on wood with strong texture",
+                        "a twig with curled leaves, lots of negative space",
+                        "a restrained foraging study: acorns and leaves, uncluttered",
+                        "a branch of rose hips in a neutral vessel, painterly texture",
+                        "rowan berries on a simple surface, minimalist and close-up",
+                        "a small arrangement of beech leaves and twigs, minimal composition",
+                        "a still-life of pomegranates with deep shadow and thick paint",
+                        "a single pear with stem and leaf on linen, strong negative space",
+                        "a few apples with leaves attached, restrained palette",
+                        "dried seed heads in a narrow vessel, sparse and airy",
+                        "a simple bowl of mixed nuts (walnuts, hazelnuts) on linen, close-up",
+                        "acorns in a small neutral dish, tightly framed",
+                        "a minimal study of curled vine tendrils and leaves, muted tones",
+                        "a single branch with late autumn berries, side-lit and calm",
+                        "fallen maple leaves arranged simply, no decorative clutter",
+                        "a quiet still-life of dried grasses and a single leaf, soft diffused light",
+                        "a simple composition of small gourds, kept minimal and not decorative",
+                        "a sparse arrangement of dried stems and pods, gallery restraint",
                     ],
                     "Winter": [
-                        "candlelit still-life with soft reflections",
-                        "winter citrus and brass vessels",
-                        "dried flowers and aged pottery in soft light",
-                        "pomegranate and dark velvet",
-                        "evergreen sprigs and candlelight",
-                        "frosted glass and winter berries",
-                        "pine cones and weathered wood in firelight",
-                        "dried hydrangeas in muted winter tones",
-                        "quince and aged linen in soft light",
-                        "amaryllis and antique silver",
+                        # --- Evergreens / foliage brought inside ---
+                        "bare winter branches with visible buds arranged in a simple ceramic vessel",
+                        "a single twig with buds, side-lit and minimal",
+                        "a sparse arrangement of thin branches with strong negative space",
+                        "a few thin twigs with buds laid diagonally on linen, close-up",
+                        "holly branches with deep green leaves and red berries, minimal still-life",
+                        "a single holly sprig with berries on linen, close-up",
+                        "holly leaves arranged simply on dark wood, restrained palette",
+                        "ivy trails with muted winter tones arranged loosely on linen",
+                        "a few ivy leaves on dark wood, restrained palette",
+                        "pine branches with subtle texture, cropped tightly and uncluttered",
+                        "a single pine sprig in a narrow bottle, minimal",
+                        "a small bundle of evergreen needles tied loosely, minimalist framing",
+                        "spruce tips in a simple glass bottle, quiet winter light",
+                        "cedar sprigs arranged asymmetrically with lots of negative space",
+
+                        # --- Cones / berries / pods ---
+                        "a small cluster of pinecones arranged naturally on dark wood",
+                        "a single pinecone close-up with strong texture and shadow",
+                        "two pinecones with a twig, simple composition and deep shadow",
+                        "dried winter berries in a neutral ceramic bowl",
+                        "holly berries scattered sparingly on pale cloth, close-up",
+                        "a small cluster of red berries on a twig, tightly framed",
+                        "rose hips and winter twigs in a neutral vessel, minimal",
+                        "seed pods and winter stems in a narrow bottle, sparse and airy",
+
+                        # --- Winter fruits (still-life, not cosy food) ---
+                        "pomegranate with textured skin resting on folded linen",
+                        "a cut pomegranate hinted only by colour and texture (no messy detail)",
+                        "persimmons arranged simply with strong side light and deep shadows",
+                        "tangerines with leaves attached, minimal winter still-life",
+                        "a single tangerine with leaf on linen, strong negative space",
+                        "cranberries scattered sparingly on pale cloth, close-up composition",
+                        "a small bowl of cranberries, minimalist framing",
+                        "a single pear on folded linen, restrained palette and strong texture",
+
+                        # --- Frost / snow-dusted elements (collected, not outdoors scene) ---
+                        "frost-dusted twigs arranged with lots of negative space",
+                        "snow-dusted leaves placed carefully on a wooden surface",
+                        "a minimal winter study of twigs and a single leaf, muted tones",
+                        "a single frost-tipped leaf on dark wood, close-up",
+                        "a simple arrangement of snow-dusted evergreen sprigs, minimal composition",
+
+                        # --- Mixed nature study (gallery restraint) ---
+                        "winter branches and cones arranged asymmetrically, restrained palette",
+                        "found winter materials (branches, cones, berries) arranged with gallery restraint",
+                        "a restrained nature study: evergreen sprig, twig, and a few berries, uncluttered",
+                        "a sparse arrangement of winter foliage and one fruit, minimal and calm",
                     ],
                 }
 
@@ -530,6 +615,16 @@ class ImageGenerator:
             f"(3) NO TEXT - no words, letters, signatures, or watermarks. "
             f"(4) 16:9 aspect ratio. "
         )
+
+        # Add rules after kitsch/props line in the indoor prompt block
+        # Find the exact sentence and insert after
+        # (For context, this will be handled by inserting the new sentence after the relevant line if present in prompt)
+        kitsch_sentence = "Avoid kitsch seasonal props (no pine cones, crackers, novelty decorations) and avoid geometric patchwork or blocky mosaic backgrounds."
+        if kitsch_sentence in prompt:
+            prompt = prompt.replace(
+                kitsch_sentence,
+                kitsch_sentence + " Avoid cosy, lifestyle, or hygge imagery (no candles, books, mugs, blankets, or food-as-comfort themes). "
+            )
 
         return prompt
 
