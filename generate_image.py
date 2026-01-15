@@ -579,9 +579,9 @@ class ImageGenerator:
 
                 # Season-specific inspiration (loose guidance, not prescriptive)
                 seasonal_inspiration = {
-                    "Spring": "blossoms, fresh growth, wildflowers, soft morning light, new leaves, birdsong atmosphere",
-                    "Summer": "warm golden light, meadows, coastal scenes, full bloom, lazy afternoons, long shadows",
-                    "Autumn": "golden and russet tones, fallen leaves, misty mornings, harvest time, berries, bare branches",
+                    "Spring": "blossoms, fresh growth, wildflowers, spring bouquets, meadow flowers, soft morning light, new leaves, birdsong atmosphere",
+                    "Summer": "lavender fields, wildflower meadows, coastal scenes, warm golden light, full bloom, sunlit foliage, lazy afternoons, long shadows",
+                    "Autumn": "golden and russet tones, fallen leaves, misty mornings, berries on hedgerows, woodland floor, bare branches, late afternoon light",
                     "Winter": "frost, bare trees, holly, snow, cold light, quiet stillness, ice, evergreens",
                 }
 
