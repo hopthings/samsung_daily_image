@@ -585,7 +585,7 @@ class ImageGenerator:
                     "Spring": "blossoms, fresh growth, wildflowers, spring bouquets, meadow flowers, soft morning light, new leaves, birdsong atmosphere",
                     "Summer": "lavender fields, wildflower meadows, coastal scenes, warm golden light, full bloom, sunlit foliage, lazy afternoons, long shadows",
                     "Autumn": "golden and russet tones, fallen leaves, misty mornings, berries on hedgerows, woodland floor, bare branches, late afternoon light",
-                    "Winter": "frost, bare trees, holly, snow, cold light, quiet stillness, ice, evergreens",
+                    "Winter": "frozen pond reflections, snowy woodland paths, frost-covered meadows, pale winter sun through bare branches, red berries against snow, icicles catching light, misty winter morning, snow-laden evergreen boughs, delicate frost patterns, winter field under grey sky, blue hour snow scenes, crisp shadows on fresh snow, dried seed heads in snow, quiet winter stream, snow drifts and textures",
                 }
 
                 inspiration = seasonal_inspiration.get(season, seasonal_inspiration["Autumn"])
