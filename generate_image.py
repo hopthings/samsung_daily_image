@@ -580,20 +580,72 @@ class ImageGenerator:
                         f"Incorporate {weather_modifier} naturally into the outdoor scene. "
                     )
 
-                # Season-specific inspiration (loose guidance, not prescriptive)
-                seasonal_inspiration = {
-                    "Spring": "blossoms, fresh growth, wildflowers, spring bouquets, meadow flowers, soft morning light, new leaves, birdsong atmosphere",
-                    "Summer": "lavender fields, wildflower meadows, coastal scenes, warm golden light, full bloom, sunlit foliage, lazy afternoons, long shadows",
-                    "Autumn": "golden and russet tones, fallen leaves, misty mornings, berries on hedgerows, woodland floor, bare branches, late afternoon light",
-                    "Winter": "frost, bare trees, holly, snow, cold light, quiet stillness, ice, evergreens",
+                # Specific outdoor scenes by season - ONE is randomly selected for variety
+                outdoor_scenes_by_season = {
+                    "Spring": [
+                        "a close-up of cherry blossom branches against a soft sky",
+                        "a meadow of wildflowers in soft morning light",
+                        "a winding path through blossoming trees",
+                        "dew drops on spring leaves, macro view",
+                        "a stream bank with fresh green growth",
+                        "magnolia blooms against weathered bark",
+                        "a hillside dotted with wild primroses",
+                        "new leaves unfurling on a single branch, backlit",
+                    ],
+                    "Summer": [
+                        "a lavender field stretching to the horizon",
+                        "a coastal cliff with wild grasses and sea beyond",
+                        "a sun-dappled forest floor with ferns",
+                        "a wheat field in golden afternoon light",
+                        "wildflower meadow with poppies and cornflowers",
+                        "a lazy river bend with overhanging willows",
+                        "long shadows across a sunlit meadow",
+                        "a single tree in a wide open field, high summer",
+                    ],
+                    "Autumn": [
+                        "fallen leaves carpeting a forest floor",
+                        "a misty morning in an oak woodland",
+                        "a hedgerow with red berries and bronze leaves",
+                        "a lone tree in golden autumn color",
+                        "a winding path through russet bracken",
+                        "mushrooms on a mossy log, close-up",
+                        "late afternoon light through amber leaves",
+                        "a quiet pond reflecting autumn trees",
+                    ],
+                    "Winter": [
+                        # Wide landscapes
+                        "a vast snowy field under a pale grey sky, minimal and quiet",
+                        "rolling snow-covered hills with a distant tree line",
+                        "a frozen lake with subtle ice patterns, wide view",
+                        "snow-covered moorland stretching to the horizon",
+                        # Woodland scenes
+                        "bare birch trunks in snow, abstract pattern of verticals",
+                        "a single snow-laden pine in a clearing",
+                        "frost-covered branches forming a natural arch",
+                        "a quiet woodland path with fresh snow, no footprints",
+                        # Water features
+                        "a partially frozen stream with snow-covered banks",
+                        "icicles hanging from a rocky outcrop, close-up",
+                        "a winter waterfall with ice formations",
+                        "reeds poking through a frozen pond",
+                        # Close-up / detail
+                        "intricate frost crystals on a window or leaf, macro",
+                        "red berries on a bare branch against snow",
+                        "dried seed heads dusted with frost, close-up",
+                        "snow texture and shadow patterns, abstract",
+                        # Atmospheric / light
+                        "blue hour winter scene with snow and bare trees",
+                        "pale winter sun breaking through misty trees",
+                        "golden hour light on fresh snow, long shadows",
+                        "a misty winter morning with silhouetted trees",
+                    ],
                 }
 
-                inspiration = seasonal_inspiration.get(season, seasonal_inspiration["Autumn"])
+                scenes = outdoor_scenes_by_season.get(season, outdoor_scenes_by_season["Autumn"])
+                selected_scene = secure_random.choice(scenes)
 
                 prompt += (
-                    f"Create an outdoor {season.lower()} nature scene. "
-                    f"Draw inspiration from: {inspiration}. "
-                    f"This could be a wide landscape, a close-up detail, or an abstract composition - vary the approach. "
+                    f"Create an outdoor {season.lower()} nature scene: {selected_scene}. "
                     f"Do not include any vases, pots, planters, bowls, tables, furniture, rugs, balconies, or window sills. "
                     f"Do not include still-life arrangements or man-made containers of any kind. "
                     f"The scene must be clearly and unmistakably outdoors. "
