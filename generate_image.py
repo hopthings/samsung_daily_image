@@ -613,31 +613,77 @@ class ImageGenerator:
                         "a quiet pond reflecting autumn trees",
                     ],
                     "Winter": [
-                        # Wide landscapes
+                        # Snowy landscapes
                         "a vast snowy field under a pale grey sky, minimal and quiet",
                         "rolling snow-covered hills with a distant tree line",
-                        "a frozen lake with subtle ice patterns, wide view",
                         "snow-covered moorland stretching to the horizon",
-                        # Woodland scenes
+
+                        # Woodland
                         "bare birch trunks in snow, abstract pattern of verticals",
                         "a single snow-laden pine in a clearing",
                         "frost-covered branches forming a natural arch",
                         "a quiet woodland path with fresh snow, no footprints",
-                        # Water features
+
+                        # Coastal / sea
+                        "winter sea crashing against dark rocky cliffs",
+                        "waves breaking on an empty winter beach, muted tones",
+                        "a frozen harbour with moored boats, distant view",
+                        "ice formations on a winter shoreline",
+                        "a rocky headland in winter storm light",
+
+                        # Water / ice
                         "a partially frozen stream with snow-covered banks",
                         "icicles hanging from a rocky outcrop, close-up",
                         "a winter waterfall with ice formations",
                         "reeds poking through a frozen pond",
+                        "a frozen lake with subtle ice patterns, wide view",
+                        "ice patterns on a frozen puddle, macro view",
+
+                        # Rural / agricultural
+                        "sheep huddled in a frosty field, distant view",
+                        "bare vineyard rows in cold morning light",
+                        "a frost-covered gate and hedgerow",
+                        "ploughed winter fields, cold brown earth under grey sky",
+                        "a stone wall crossing a winter hillside",
+                        "hay bales in a frost-covered field",
+
+                        # Wildlife
+                        "a robin perched on a bare winter branch, close-up",
+                        "deer in a misty winter clearing, distant",
+                        "a fox crossing a snowy field",
+                        "starling murmuration against a winter sunset sky",
+
+                        # Mountains / dramatic terrain
+                        "snow-capped mountain peaks with dramatic winter cloud",
+                        "a mountain stream cutting through ice and rock",
+                        "rocky outcrop with frost and lichen, close-up",
+
                         # Close-up / detail
-                        "intricate frost crystals on a window or leaf, macro",
-                        "red berries on a bare branch against snow",
+                        "intricate frost crystals on a leaf, macro",
                         "dried seed heads dusted with frost, close-up",
                         "snow texture and shadow patterns, abstract",
+                        "a frozen cobweb with ice crystals, macro",
+                        "bark texture and lichen in cold winter light, close-up",
+
                         # Atmospheric / light
-                        "blue hour winter scene with snow and bare trees",
+                        "blue hour winter scene with bare trees",
                         "pale winter sun breaking through misty trees",
                         "golden hour light on fresh snow, long shadows",
                         "a misty winter morning with silhouetted trees",
+                        "dramatic winter sky over a dark landscape",
+                        "winter sunset with pink and purple clouds over snow",
+
+                        # Non-snowy winter
+                        "muddy winter fields under dramatic grey sky",
+                        "bare stubble fields in low winter sun",
+                        "rain-soaked winter moor with distant hills",
+                        "dormant brown landscape with bare hedgerows",
+
+                        # Built elements in landscape
+                        "a stone bridge over a winter river",
+                        "rooftops dusted with snow, viewed from a distant hill",
+                        "a distant village in a frosty valley",
+                        "an old stone wall with frost, close-up texture",
                     ],
                 }
 

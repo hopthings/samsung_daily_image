@@ -5,6 +5,7 @@
 images/
 generated_images/
 enhanced_images/
+pi_images/
 
 # Python
 __pycache__/
