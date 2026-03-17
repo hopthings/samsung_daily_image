@@ -353,12 +353,9 @@ class ImageGenerator:
         style = secure_random.choice(art_styles)
 
         # Choose scene type: indoor or outdoor (ensures no mixed compositions)
-        # Spring/Summer: 60% outdoor, 40% indoor (more interesting still-life options)
-        # Autumn: 75% outdoor, 25% indoor
+        # Spring/Summer/Autumn: 75% outdoor, 25% indoor
         # Winter: 100% outdoor, 0% indoor
-        if season in ("Spring", "Summer"):
-            outdoor_probability = 0.6
-        elif season == "Winter":
+        if season == "Winter":
             outdoor_probability = 1.0
         else:
             outdoor_probability = 0.75
