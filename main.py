@@ -242,10 +242,10 @@ class DailyArtApp:
                             f"(attempt {attempt + 1}/"
                             f"{max_validation_retries + 1})"
                         )
-                        for f in result.failures:
+                        for failure in result.failures:
                             self.logger.warning(
                                 f"  CRITICAL FAIL: "
-                                f"{f.rule_id} — {f.reason}"
+                                f"{failure.rule_id} — {failure.reason}"
                             )
 
                         if attempt < max_validation_retries:

@@ -122,7 +122,9 @@ class ImageValidator:
             "EACH rule below. For each rule, respond with \"pass\" or \"fail\" "
             "and a brief reason (one sentence).\n\n"
             "Be strict about the critical rules (full_bleed, not_meta_image, "
-            "no_text). These are hard requirements.\n\n"
+            "no_text). These are hard requirements. When in doubt, FAIL the "
+            "rule. It is better to reject a borderline image than to accept "
+            "one that looks like a photo of a painting.\n\n"
             f"Rules:\n{rules_text}\n"
             "Respond ONLY with valid JSON in this exact format:\n"
             "{\n"
@@ -163,7 +165,6 @@ class ImageValidator:
         mime_type = mime_map.get(ext, "image/jpeg")
 
         headers = {
-            "Content-Type": "application/json",
             "Authorization": f"Bearer {self.api_key}",
         }
 
@@ -195,7 +196,7 @@ class ImageValidator:
             response = requests.post(
                 "https://api.openai.com/v1/chat/completions",
                 headers=headers,
-                data=json.dumps(payload),
+                json=payload,
                 timeout=30,
             )
             response.raise_for_status()
@@ -237,7 +238,12 @@ class ImageValidator:
             rule_id = rule["id"]
             severity = rule["severity"]
 
-            rule_data = results.get(rule_id, {})
+            rule_data = results.get(rule_id)
+            if rule_data is None:
+                logger.warning(
+                    f"Validation response missing rule: {rule_id}"
+                )
+                rule_data = {}
             result_str = rule_data.get("result", "pass").lower().strip()
             reason = rule_data.get("reason", "No reason provided")
             passed = result_str == "pass"
