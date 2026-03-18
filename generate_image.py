@@ -363,7 +363,13 @@ class ImageGenerator:
         print(f"Selected scene type: {scene_type}")
 
         # Create detailed context-aware prompt for DALL-E
+        # Anti-meta-image preamble — placed first for maximum weight
         prompt = (
+            f"Generate a direct, full-bleed artwork — NOT a depiction of a "
+            f"painting. The image must fill the entire frame edge-to-edge. "
+            f"Do not show any frames, borders, walls, easels, canvases, or "
+            f"gallery settings. The viewer is looking AT the scene, not at "
+            f"a picture of it hanging somewhere. "
             f"Create a high-quality {style} art piece for {weekday}, "
             f"{formatted_date} in {season}. "
         )
@@ -706,12 +712,20 @@ class ImageGenerator:
 
         prompt += (
             f"CRITICAL RULES: "
-            f"(1) FULL BLEED - the artwork must extend to all four edges with no borders, frames, canvas edges, "
-            f"vignettes, or margins visible. The scene continues beyond the image boundaries. "
-            f"(2) NOT A META-IMAGE - do not depict a painting, canvas, easel, art supplies, brushes, or reference photos. "
-            f"The image IS the artwork, not a picture OF an artwork. "
-            f"(3) NO TEXT - no words, letters, signatures, or watermarks. "
+            f"(1) FULL BLEED — the artwork MUST extend to all four edges with "
+            f"no borders, frames, canvas edges, vignettes, or margins visible. "
+            f"The scene continues beyond the image boundaries. No edge "
+            f"decoration of any kind. "
+            f"(2) NOT A META-IMAGE — do NOT depict a painting hanging on a "
+            f"wall, a canvas on an easel, a framed picture, artwork in a "
+            f"gallery, or any image-within-an-image. Do not show brick walls, "
+            f"gallery walls, wooden frames, ornate frames, or mounting "
+            f"hardware. The viewer is looking directly AT the scene. "
+            f"(3) NO TEXT — no words, letters, signatures, or watermarks. "
             f"(4) 16:9 aspect ratio. "
+            f"(5) MUTED COLOURS — colours must have the slightly greyed, "
+            f"chalky quality of real oil pigments mixed on a palette. "
+            f"No oversaturated, digitally vivid, or neon tones. "
         )
 
         # Add rules after kitsch/props line in the indoor prompt block

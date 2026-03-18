@@ -23,6 +23,7 @@ from generate_image import ImageGenerator
 from image_enhancement import load_image, save_image, apply_enhancement, resize_image
 from enhancement_presets import get_preset_params
 from upscale_image import upscale_image
+from validate_image import ImageValidator
 # TVImageUploader will be imported after creating the module
 
 
@@ -150,7 +151,9 @@ class DailyArtApp:
             upscale: bool = True,
             retry_on_failure: bool = False,
             max_retries: int = 5,
-            initial_retry_delay: int = 300) -> bool:
+            initial_retry_delay: int = 300,
+            skip_validation: bool = False,
+            max_validation_retries: int = 3) -> bool:
         """Run the main application flow.
 
         Args:
@@ -163,6 +166,8 @@ class DailyArtApp:
             retry_on_failure: If True, retry upload on failure with exponential backoff.
             max_retries: Maximum number of retry attempts (default: 5).
             initial_retry_delay: Initial delay in seconds before first retry (default: 300 = 5 min).
+            skip_validation: If True, skip image validation step.
+            max_validation_retries: Max regeneration attempts on validation failure (default: 3).
 
         Returns:
             True if successful, False otherwise.
@@ -192,6 +197,93 @@ class DailyArtApp:
                     return False
                 image_path = generated_path
                 self.logger.info(f"Image generated: {image_path}")
+
+            # Step 1.5: Validate generated image against quality rules
+            if not skip_validation and custom_image is None and image_path:
+                try:
+                    validator = ImageValidator()
+                    for attempt in range(max_validation_retries + 1):
+                        self.logger.info(
+                            f"Validating image (attempt {attempt + 1}/"
+                            f"{max_validation_retries + 1})..."
+                        )
+                        result = validator.validate(image_path)
+
+                        if result.error:
+                            self.logger.warning(
+                                f"Validation error: {result.error} "
+                                f"— proceeding with image"
+                            )
+                            break
+
+                        # Log all results
+                        for r in result.all_results:
+                            status = "PASS" if r.passed else "FAIL"
+                            self.logger.info(
+                                f"  [{status}] {r.rule_id}: {r.reason}"
+                            )
+
+                        if result.passed:
+                            self.logger.info(
+                                f"Image passed validation on attempt "
+                                f"{attempt + 1}"
+                            )
+                            if result.warnings:
+                                for w in result.warnings:
+                                    self.logger.warning(
+                                        f"Validation warning: "
+                                        f"{w.rule_id} — {w.reason}"
+                                    )
+                            break
+
+                        # Image failed critical rules
+                        self.logger.warning(
+                            f"Image FAILED validation "
+                            f"(attempt {attempt + 1}/"
+                            f"{max_validation_retries + 1})"
+                        )
+                        for f in result.failures:
+                            self.logger.warning(
+                                f"  CRITICAL FAIL: "
+                                f"{f.rule_id} — {f.reason}"
+                            )
+
+                        if attempt < max_validation_retries:
+                            # Clean up the failed image (keep prompt file)
+                            self.logger.info("Regenerating image...")
+                            try:
+                                if os.path.exists(image_path):
+                                    os.remove(image_path)
+                            except OSError:
+                                pass
+
+                            # Brief delay before regeneration
+                            time.sleep(5)
+
+                            generated_path = (
+                                self.image_generator.generate_image(
+                                    custom_prompt
+                                )
+                            )
+                            if not generated_path:
+                                self.logger.error(
+                                    "Failed to regenerate image"
+                                )
+                                return False
+                            image_path = generated_path
+                            self.logger.info(
+                                f"Regenerated image: {image_path}"
+                            )
+                        else:
+                            self.logger.warning(
+                                "Max validation retries reached, "
+                                "proceeding with current image"
+                            )
+                except ValueError as e:
+                    self.logger.warning(
+                        f"Could not initialize validator: {e} "
+                        f"— skipping validation"
+                    )
 
             # Step 2: Enhance the image
             if enhancement_preset:
@@ -543,6 +635,17 @@ def main() -> None:
         help="Skip upscaling step"
     )
     parser.add_argument(
+        "--skip-validation",
+        action="store_true",
+        help="Skip post-generation image validation."
+    )
+    parser.add_argument(
+        "--max-validation-retries",
+        type=int,
+        default=3,
+        help="Max regeneration attempts on validation failure (default: 3)."
+    )
+    parser.add_argument(
         "--debug", "-d",
         action="store_true",
         help="Enable debug logging."
@@ -579,11 +682,13 @@ def main() -> None:
     enhancement_preset = None if args.enhance.lower() == "none" else args.enhance
     
     success = app.run(
-        args.prompt, 
-        args.image, 
+        args.prompt,
+        args.image,
         enhancement_preset,
         args.skip_upload,
-        args.upscale
+        args.upscale,
+        skip_validation=args.skip_validation,
+        max_validation_retries=args.max_validation_retries,
     )
 
     if success:
