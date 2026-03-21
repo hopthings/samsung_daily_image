@@ -72,7 +72,7 @@ VALIDATION_RULES = [
             "quality of real oil pigments. No oversaturated, neon, or "
             "digitally vivid tones."
         ),
-        "severity": "warning",
+        "severity": "critical",
     },
     {
         "id": "palette_knife_style",
@@ -80,7 +80,7 @@ VALIDATION_RULES = [
             "The artwork shows visible palette knife strokes and thick impasto "
             "texture consistent with oil painting."
         ),
-        "severity": "warning",
+        "severity": "critical",
     },
 ]
 
